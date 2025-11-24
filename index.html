@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản Lý Kho Dược GDP - IDECO (Final Pro)</title>
+    <title>Quản Lý Kho Dược GDP - IDECO (Update Unit)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -108,15 +108,20 @@
                     <input type="text" id="imp-code" placeholder="Mã sẽ tự hiện..." readonly style="background-color: #f3f4f6;">
                     
                     <div style="display: flex; gap: 10px;">
+                        <div style="flex:1"><label>Đơn Vị</label><input type="text" id="imp-unit" placeholder="Hộp/Viên..."></div>
                         <div style="flex:1"><label>Số Lô (*)</label><input type="text" id="imp-lot"></div>
-                        <div style="flex:1"><label>Hạn Dùng (*)</label><input type="date" id="imp-expiry"></div>
                     </div>
+                    
                     <div style="display: flex; gap: 10px;">
+                        <div style="flex:1"><label>Hạn Dùng (*)</label><input type="date" id="imp-expiry"></div>
                         <div style="flex:1"><label>Số Lượng (*)</label><input type="number" id="imp-qty" min="1"></div>
-                        <div style="flex:1"><label>Ngày Nhập</label><input type="date" id="imp-date"></div>
                     </div>
-                    <label>Mã Phiếu Nhập NCC</label>
-                    <input type="text" id="imp-slip">
+                    
+                    <div style="display: flex; gap: 10px;">
+                        <div style="flex:1"><label>Ngày Nhập</label><input type="date" id="imp-date"></div>
+                        <div style="flex:1"><label>Mã Phiếu</label><input type="text" id="imp-slip"></div>
+                    </div>
+                    
                     <button id="btn-manual-import" class="btn btn-success" style="width: 100%;">LƯU NHẬP KHO</button>
                 </div>
 
@@ -128,23 +133,37 @@
                     </div>
 
                     <div id="mode-paste">
-                        <p style="font-size: 0.8rem; color: #666;">Copy từ Excel (bỏ tiêu đề) cột: <b>STT | Tên | Lô | Hạn dùng | SL</b></p>
+                        <p style="font-size: 0.8rem; color: #666;">
+                            Copy từ Excel (bỏ tiêu đề) cột:<br>
+                            <b>STT | Tên Hàng Hóa | Đơn Vị | Số Lô | Hạn Dùng | Số Lượng</b>
+                        </p>
                         <textarea id="paste-input" class="paste-area" placeholder="Click vào đây và ấn Ctrl+V..."></textarea>
                         <button id="btn-process-paste" class="btn btn-primary" style="width: 100%; margin-top: 5px;">Soi Chiếu</button>
                     </div>
 
                     <div id="mode-file" style="display: none;">
-                        <p style="font-size: 0.8rem;">File Excel cột: STT, Tên hàng, Số lô, Hạn dùng, Số lượng</p>
+                        <p style="font-size: 0.8rem;">File Excel cột: STT, Tên Hàng Hóa, Đơn Vị, Số Lô, Hạn Dùng, Số Lượng</p>
                         <input type="file" id="import-file-input" accept=".xlsx, .xls">
                     </div>
 
                     <div id="preview-section" style="display: none; margin-top: 15px;">
                         <div style="background: #ecfdf5; padding: 5px; font-size: 0.9rem; color: #065f46;">
-                            <strong>Kiểm tra:</strong> Sửa Mã SP/Lô trực tiếp.
+                            <strong>Kiểm tra:</strong> Có thể sửa Mã/Lô trực tiếp.
                         </div>
                         <div style="max-height: 250px; overflow-y: auto;">
                             <table class="preview-table">
-                                <thead><tr><th style="width:30px">STT</th><th>Mã SP</th><th>Tên</th><th>Lô</th><th>Hạn</th><th style="width:50px">SL</th><th>Xóa</th></tr></thead>
+                                <thead>
+                                    <tr>
+                                        <th style="width:30px">STT</th>
+                                        <th>Mã SP</th>
+                                        <th>Tên</th>
+                                        <th>Đơn Vị</th>
+                                        <th>Lô</th>
+                                        <th>Hạn</th>
+                                        <th style="width:50px">SL</th>
+                                        <th>Xóa</th>
+                                    </tr>
+                                </thead>
                                 <tbody id="preview-body"></tbody>
                             </table>
                         </div>
@@ -265,7 +284,7 @@
     <div class="toast" id="toast">Thông báo</div>
 
     <script>
-        // --- CẤU HÌNH FIREBASE ---
+        // --- FIREBASE SETUP ---
         const firebaseConfig = {
             apiKey: "AIzaSyB54vAqmLmkMPq-L0X69oRS2DdVxxtrLPc",
             authDomain: "quanlykho-5c64f.firebaseapp.com",
@@ -280,13 +299,12 @@
         const excelFilesRef = db.ref('excelFiles'); 
         const exportsRef = db.ref('exports');
 
-        // --- GLOBAL VARIABLES ---
+        // --- GLOBAL VARS ---
         let allDocuments = []; 
         let allExports = [];   
         let masterData = [];   
         let previewData = []; 
         
-        // Export Vars
         let currentExportLot = null;
         let currentExportSessionRecords = []; 
         let exportExcelData = [];
@@ -295,19 +313,17 @@
         document.getElementById('imp-date').valueAsDate = new Date();
         document.getElementById('export-date').valueAsDate = new Date();
 
-        // LOAD DATA & RENDER LIST THEO STYLE GỐC
+        // LOAD DATA
         documentsRef.on('value', snap => {
             const data = snap.val();
             allDocuments = data ? Object.keys(data).map(k => ({ id: k, ...data[k] })) : [];
-            updateDocumentsList(allDocuments); // Render list có Sửa/Xóa
+            updateDocumentsList(allDocuments); 
             updateMasterDataFromStock();
         });
-
         exportsRef.on('value', snap => {
             const data = snap.val();
             allExports = data ? Object.keys(data).map(k => ({ id: k, ...data[k] })) : [];
         });
-
         excelFilesRef.on('value', snap => {
             const data = snap.val();
             const files = data ? Object.keys(data).map(k => ({ id: k, ...data[k] })) : [];
@@ -315,14 +331,13 @@
             renderMasterFiles(files);
         });
 
-        // --- 1. CHỨC NĂNG LIST NHẬP KHO GỐC (SỬA/XÓA/LỌC) ---
+        // --- 1. DANH SÁCH TỒN KHO & CHỨC NĂNG SỬA/XÓA (KHÔI PHỤC TỪ GỐC) ---
         function updateDocumentsList(documents) {
             const listContainer = document.getElementById('documents-list');
             if (documents.length === 0) { 
                 listContainer.innerHTML = '<div class="empty-list">Kho trống.</div>'; return; 
             }
             
-            // Logic lọc
             let filtered = [...documents];
             const term = document.getElementById('search-input').value.toLowerCase();
             if(term) filtered = filtered.filter(d => (d.productName||'').toLowerCase().includes(term) || (d.lotNumber||'').toLowerCase().includes(term));
@@ -342,7 +357,6 @@
                 el.className = 'document-item';
                 el.id = `doc-${doc.id}`;
                 
-                // Check hạn dùng
                 const exp = new Date(doc.expiryDate);
                 const diff = Math.ceil((exp - new Date()) / (86400000));
                 if(diff<=0) el.classList.add('expired');
@@ -350,10 +364,10 @@
 
                 el.innerHTML = `
                     <div style="flex:1">
-                        <div style="font-weight:bold; color:var(--primary)">${doc.productName}</div>
+                        <div style="font-weight:bold; color:var(--primary)">${doc.productName} ${doc.unit ? `(${doc.unit})` : ''}</div>
                         <div style="font-size:0.85rem; color:#666">
                             Lô: ${doc.lotNumber} | Hạn: ${new Date(doc.expiryDate).toLocaleDateString('vi-VN')} | 
-                            SL: <b>${doc.quantity}</b> | Mã NCC: ${doc.slipCode || doc.storageLocation || '-'}
+                            SL: <b>${doc.quantity}</b>
                         </div>
                     </div>
                     <div style="display:flex; gap:5px;">
@@ -365,12 +379,12 @@
             });
         }
 
-        // Event listener cho bộ lọc
+        // Listener lọc
         document.getElementById('search-input').addEventListener('input', () => updateDocumentsList(allDocuments));
         document.getElementById('filter-date').addEventListener('change', () => updateDocumentsList(allDocuments));
         document.getElementById('sort-by').addEventListener('change', () => updateDocumentsList(allDocuments));
 
-        // Logic Sửa (Inline Edit như file gốc)
+        // Edit
         window.enableEditMode = function(id) {
             const doc = allDocuments.find(d => d.id === id);
             const el = document.getElementById(`doc-${id}`);
@@ -378,12 +392,12 @@
                 <div style="flex:1">
                     <input id="edit-name-${id}" value="${doc.productName}" style="margin:2px 0; padding:5px;">
                     <div style="display:flex; gap:5px;">
+                        <input id="edit-unit-${id}" value="${doc.unit||''}" placeholder="Đơn vị" style="width:60px; padding:5px;">
                         <input id="edit-lot-${id}" value="${doc.lotNumber}" placeholder="Lô" style="flex:1; padding:5px;">
                         <input type="date" id="edit-exp-${id}" value="${doc.expiryDate}" style="flex:1; padding:5px;">
                     </div>
                     <div style="display:flex; gap:5px;">
                         <input type="number" id="edit-qty-${id}" value="${doc.quantity}" placeholder="SL" style="flex:1; padding:5px;">
-                        <input id="edit-slip-${id}" value="${doc.slipCode || doc.storageLocation || ''}" placeholder="Mã NCC" style="flex:1; padding:5px;">
                     </div>
                 </div>
                 <div>
@@ -392,34 +406,29 @@
                 </div>
             `;
         }
-
         window.saveChanges = async function(id) {
             const updated = {
                 productName: document.getElementById(`edit-name-${id}`).value,
+                unit: document.getElementById(`edit-unit-${id}`).value,
                 lotNumber: document.getElementById(`edit-lot-${id}`).value,
                 expiryDate: document.getElementById(`edit-exp-${id}`).value,
-                quantity: document.getElementById(`edit-qty-${id}`).value,
-                slipCode: document.getElementById(`edit-slip-${id}`).value,
-                storageLocation: document.getElementById(`edit-slip-${id}`).value // Sync both
+                quantity: document.getElementById(`edit-qty-${id}`).value
             };
             if(!updated.productName || !updated.expiryDate) { showToast('Thiếu thông tin!', 'error'); return; }
             await documentsRef.child(id).update(updated);
             showToast('Đã cập nhật!', 'success');
         }
 
+        // Delete One
         window.deleteDocument = function(id) {
             if(confirm('Xóa sản phẩm này?')) {
                 const p = prompt('Nhập mật khẩu xóa (ideco2025):');
-                if(p === 'ideco2025') {
-                    documentsRef.child(id).remove();
-                    showToast('Đã xóa!', 'success');
-                } else {
-                    showToast('Sai mật khẩu', 'error');
-                }
+                if(p === 'ideco2025') { documentsRef.child(id).remove(); showToast('Đã xóa!', 'success'); } 
+                else { showToast('Sai mật khẩu', 'error'); }
             }
         }
 
-        // Logic Xóa Tất Cả (Mật khẩu ideco2025)
+        // Delete All
         document.getElementById('delete-all-btn').addEventListener('click', () => {
             document.getElementById('delete-all-modal').style.display = 'flex';
             document.getElementById('delete-all-password').value = '';
@@ -435,12 +444,10 @@
                     showToast('Đã xóa toàn bộ kho!', 'success');
                     document.getElementById('delete-all-modal').style.display = 'none';
                 }
-            } else {
-                showToast('Mật khẩu sai!', 'error');
-            }
+            } else { showToast('Mật khẩu sai!', 'error'); }
         });
 
-        // --- 2. NHẬP KHO THÔNG MINH (LOGIC MỚI) ---
+        // --- 2. NHẬP KHO THÔNG MINH (ĐÃ CẬP NHẬT CỘT ĐƠN VỊ) ---
         function cleanSearchStr(str) { return str ? str.toLowerCase().replace(/^th_|th\s+|thuốc\s+/g, '').trim() : ''; }
         function processMasterData(files) {
             const map = new Map();
@@ -462,6 +469,7 @@
             });
         }
 
+        // Autocomplete
         const impName = document.getElementById('imp-name');
         const impList = document.getElementById('imp-name-list');
         impName.addEventListener('input', function() {
@@ -477,16 +485,17 @@
         });
         document.addEventListener('click', e => { if(e.target !== impName) impList.innerHTML = ''; });
 
+        // Nhập Lẻ (Có thêm Unit)
         document.getElementById('btn-manual-import').addEventListener('click', async () => {
             const item = {
                 productName: document.getElementById('imp-name').value.trim(),
                 productCode: document.getElementById('imp-code').value.trim(),
+                unit: document.getElementById('imp-unit').value.trim(),
                 lotNumber: document.getElementById('imp-lot').value.trim(),
                 expiryDate: document.getElementById('imp-expiry').value,
                 quantity: parseInt(document.getElementById('imp-qty').value),
                 importDate: document.getElementById('imp-date').value,
                 slipCode: document.getElementById('imp-slip').value.trim(),
-                storageLocation: document.getElementById('imp-slip').value.trim(),
                 createdAt: new Date().toISOString()
             };
             if(!item.productName || !item.lotNumber || !item.expiryDate || !item.quantity) { showToast('Thiếu thông tin (*)', 'error'); return; }
@@ -494,10 +503,10 @@
             showToast('Nhập kho thành công!', 'success');
             // Reset
             document.getElementById('imp-name').value = ''; document.getElementById('imp-code').value = '';
-            document.getElementById('imp-lot').value = ''; document.getElementById('imp-qty').value = '';
+            document.getElementById('imp-unit').value = ''; document.getElementById('imp-lot').value = ''; document.getElementById('imp-qty').value = '';
         });
 
-        // Import Logic (Excel/Paste)
+        // Import Excel/Paste (Cập nhật cột Unit)
         function parseDate(val) {
             if(!val) return '';
             if(typeof val === 'number') return new Date((val - (25567 + 2)) * 86400 * 1000).toISOString().split('T')[0];
@@ -509,20 +518,31 @@
         }
         document.getElementById('btn-process-paste').addEventListener('click', () => {
             const txt = document.getElementById('paste-input').value; if(!txt.trim()) return;
-            processImportData(txt.trim().split('\n').map((r, i) => { const c = r.split('\t'); return { stt: c[0], name: c[1], lot: c[2], exp: c[3], qty: c[4] }; }));
+            // Map: STT | Name | Unit | Lot | Exp | Qty
+            processImportData(txt.trim().split('\n').map((r, i) => { 
+                const c = r.split('\t'); 
+                return { stt: c[0], name: c[1], unit: c[2], lot: c[3], exp: c[4], qty: c[5] }; 
+            }));
         });
         document.getElementById('import-file-input').addEventListener('change', (e) => {
             const f = e.target.files[0]; if(!f) return;
             const r = new FileReader(); r.onload = (evt) => {
                 const wb = XLSX.read(new Uint8Array(evt.target.result), {type:'array'});
                 const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-                processImportData(data.map((r, i) => ({ stt: r['STT']||i+1, name: r['Tên hàng hóa']||r['Tên'], lot: r['Số lô']||r['So lo'], exp: r['Hạn sử dụng']||r['Han dung'], qty: r['Số lượng']||r['So luong'] })));
+                processImportData(data.map((r, i) => ({ 
+                    stt: r['STT']||i+1, 
+                    name: r['Tên Hàng Hóa']||r['Tên hàng hóa']||r['Tên thuốc'], 
+                    unit: r['Đơn Vị']||r['Đơn vị']||r['Don vi'], 
+                    lot: r['Số Lô']||r['Số lô'], 
+                    exp: r['Hạn Sử Dụng']||r['Hạn sử dụng'], 
+                    qty: r['Số Lượng']||r['Số lượng'] 
+                })));
             }; r.readAsArrayBuffer(f);
         });
         function processImportData(data) {
             previewData = data.map((r, i) => {
                 const found = masterData.find(m => m.searchKey === cleanSearchStr(r.name));
-                return { id: i, stt: r.stt, productName: r.name, productCode: found ? found.code : '', lotNumber: r.lot, expiryDate: parseDate(r.exp), quantity: r.qty };
+                return { id: i, stt: r.stt, productName: r.name, productCode: found ? found.code : '', unit: r.unit, lotNumber: r.lot, expiryDate: parseDate(r.exp), quantity: r.qty };
             });
             renderPreviewTable(); document.getElementById('preview-section').style.display = 'block';
         }
@@ -530,7 +550,15 @@
             const tb = document.getElementById('preview-body'); tb.innerHTML = '';
             previewData.forEach((d, i) => {
                 const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${d.stt}</td><td><input value="${d.productCode}" onchange="previewData[${i}].productCode=this.value"></td><td>${d.productName}</td><td><input value="${d.lotNumber}" onchange="previewData[${i}].lotNumber=this.value"></td><td><input type="date" value="${d.expiryDate}" onchange="previewData[${i}].expiryDate=this.value"></td><td><input type="number" value="${d.quantity}" onchange="previewData[${i}].quantity=this.value" style="width:50px"></td><td><button onclick="previewData.splice(${i},1);renderPreviewTable()" style="color:red;border:none;background:none;cursor:pointer">X</button></td>`;
+                tr.innerHTML = `
+                    <td>${d.stt}</td>
+                    <td><input value="${d.productCode}" onchange="previewData[${i}].productCode=this.value"></td>
+                    <td>${d.productName}</td>
+                    <td>${d.unit || ''}</td>
+                    <td><input value="${d.lotNumber}" onchange="previewData[${i}].lotNumber=this.value"></td>
+                    <td><input type="date" value="${d.expiryDate}" onchange="previewData[${i}].expiryDate=this.value"></td>
+                    <td><input type="number" value="${d.quantity}" onchange="previewData[${i}].quantity=this.value" style="width:50px"></td>
+                    <td><button onclick="previewData.splice(${i},1);renderPreviewTable()" style="color:red;border:none;background:none;cursor:pointer">X</button></td>`;
                 tb.appendChild(tr);
             });
         }
@@ -538,8 +566,10 @@
             this.disabled = true; this.innerText = 'Đang đồng bộ...';
             for(const d of previewData) {
                 if(d.productName && d.quantity > 0) await saveToInventory({
-                    productName: d.productName, productCode: d.productCode, lotNumber: d.lotNumber, expiryDate: d.expiryDate,
-                    quantity: parseInt(d.quantity), importDate: new Date().toISOString().split('T')[0], slipCode: 'BULK', storageLocation: 'BULK', createdAt: new Date().toISOString()
+                    productName: d.productName, productCode: d.productCode, unit: d.unit, 
+                    lotNumber: d.lotNumber, expiryDate: d.expiryDate,
+                    quantity: parseInt(d.quantity), importDate: new Date().toISOString().split('T')[0], 
+                    slipCode: 'BULK', createdAt: new Date().toISOString()
                 });
             }
             showToast('Đồng bộ xong!', 'success'); document.getElementById('preview-section').style.display = 'none'; this.disabled = false; this.innerText = 'ĐỒNG BỘ';
