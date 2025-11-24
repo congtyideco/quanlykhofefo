@@ -3,527 +3,992 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản Lý Kho Dược GDP - IDECO (Security Update)</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <title>Quản lý SOP - Fix Lỗi PDF & In</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
     <style>
-        :root { --primary: #2563eb; --secondary: #1e40af; --success: #10b981; --danger: #ef4444; --warning: #f59e0b; --light: #f1f5f9; --dark: #1e293b; }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.5; color: var(--dark); background: #f8fafc; padding: 20px; }
-        .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); overflow: hidden; min-height: 90vh; display: flex; flex-direction: column; }
+        /* CSS cho ứng dụng A */
+        :root {
+            --primary-color: #2c5aa0;
+            --secondary-color: #e74c3c;
+            --accent-color: #27ae60;
+            --light-bg: #f8f9fa;
+            --border-color: #dee2e6;
+            --text-color: #000000; 
+        }
         
-        header { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
-        h1 { font-size: 1.5rem; margin: 0; font-weight: 700; }
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { margin: 0; padding: 15px; background-color: #f0f2f5; color: var(--text-color); font-size: 14px; }
+        .container { max-width: 1200px; margin: 0 auto; background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
         
-        .nav-tabs { display: flex; background: #e2e8f0; padding: 10px 10px 0; }
+        /* --- Header & Logo --- */
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 2px solid var(--border-color); padding-bottom: 15px; }
+        .logo-container { width: 120px; height: 80px; display: flex; align-items: center; justify-content: center; }
+        .logo { max-width: 100%; max-height: 100%; }
+        .company-info { flex-grow: 1; text-align: center; padding: 0 15px; }
+        .company-name { font-size: 18px; font-weight: bold; margin-bottom: 5px; color: var(--primary-color); }
+        .document-title { font-size: 20px; font-weight: bold; margin: 8px 0; color: var(--secondary-color); text-transform: uppercase; }
+        .document-code { font-size: 14px; margin-bottom: 5px; color: #000; }
+        
+        /* --- Forms --- */
+        .compact-form-section { margin-bottom: 20px; padding: 15px; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--light-bg); }
+        .form-row { display: flex; flex-wrap: wrap; margin-bottom: 10px; gap: 10px; }
+        .form-group { flex: 1; min-width: 180px; }
+        .compact-form-group { flex: 1; min-width: 150px; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; color: var(--primary-color); font-size: 13px; }
+        
+        input, select, textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 13px; transition: all 0.2s; color: #000; }
+        
+        textarea.auto-resize { width: 100%; resize: none; overflow: hidden; min-height: 34px; padding: 8px 10px; line-height: 1.4; background-color: white; color: #000; }
+        input:focus, select:focus, textarea:focus { border-color: var(--primary-color); outline: none; box-shadow: 0 0 0 2px rgba(44, 90, 160, 0.1); }
+
+        /* --- Table --- */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); table-layout: fixed; }
+        th, td { border: 1px solid var(--border-color); padding: 8px; text-align: center; word-wrap: break-word; color: #000; }
+        th { background-color: var(--primary-color); color: white; font-weight: 600; font-size: 12px; position: relative; }
+        
+        .resizer { position: absolute; top: 0; right: 0; width: 5px; cursor: col-resize; user-select: none; height: 100%; z-index: 10; }
+        .resizer:hover, .resizing { background-color: var(--secondary-color); opacity: 0.7; }
+        tr:nth-child(even) { background-color: #f8f9fa; }
+
+        /* --- Buttons --- */
+        .action-buttons { margin-top: 20px; display: flex; justify-content: space-between; }
+        .utility-buttons { margin-top: 10px; display: flex; justify-content: flex-start; gap: 8px; }
+        button { padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.3s ease; display: flex; align-items: center; gap: 5px; }
+        button:hover { transform: translateY(-1px); box-shadow: 0 3px 5px rgba(0,0,0,0.1); }
+        
+        .btn-primary { background-color: var(--accent-color); color: white; }
+        .btn-secondary { background-color: var(--primary-color); color: white; }
+        .btn-danger { background-color: #e74c3c; color: white; }
+        .btn-warning { background-color: #f39c12; color: white; }
+        .btn-info { background-color: #3498db; color: white; }
+        .btn-purple { background-color: #9b59b6; color: white; }
+        .btn-teal { background-color: #009688; color: white; }
+        .btn-febo { background-color: #8e44ad; color: white; }
+
+        /* --- Upload & Info Sections --- */
+        .upload-section { margin-top: 20px; padding: 15px; border: 2px dashed #bdc3c7; border-radius: 6px; background-color: #f8f9fa; }
+        .receiving-info { margin-top: 15px; padding: 12px; background-color: #ecf0f1; border-radius: 5px; }
+        .receiving-info-row { display: flex; margin-bottom: 8px; align-items: center; }
+        .receiving-info-label { min-width: 180px; font-weight: 600; color: var(--primary-color); font-size: 13px; }
+        .receiving-info-input { flex-grow: 1; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 4px; background-color: white; color: #000; }
+        
+        /* --- Signature --- */
+        .signature-section { margin-top: 20px; display: flex; justify-content: space-between; gap: 10px; }
+        .signature-box { text-align: center; width: 30%; }
+        .signature-line { border-top: 1px solid var(--text-color); margin-top: 40px; padding-top: 5px; font-weight: 600; font-size: 13px; text-transform: uppercase; }
+        
+        /* --- Others --- */
+        .saved-files-section { margin-top: 20px; padding: 15px; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--light-bg); }
+        .files-list { max-height: 200px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 4px; padding: 10px; background-color: white; }
+        .file-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid var(--border-color); }
+        .status-indicator { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+        .status-online { background-color: var(--accent-color); }
+        .status-offline { background-color: #e74c3c; }
+        .alert { padding: 10px; border-radius: 4px; margin: 8px 0; font-size: 13px; }
+        .alert-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .compact-table { font-size: 12px; }
+        .compact-table th, .compact-table td { padding: 6px 4px; vertical-align: middle; }
+        .no-print { display: block; }
+        .section-title { font-size: 16px; font-weight: 600; color: var(--primary-color); margin-bottom: 10px; border-bottom: 1px solid var(--border-color); }
+
+        /* --- CLASS CHUYỂN ĐỔI ĐỂ IN/XUẤT PDF --- */
+        .print-substitution {
+            display: block;
+            width: 100%;
+            font-family: inherit;
+            font-size: 13px;
+            padding: 8px 10px;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-break: break-word;
+            min-height: 34px;
+            color: #000 !important;
+        }
+
+        /* --- Tabs --- */
+        .nav-tabs { display: flex; background: #e2e8f0; padding: 10px 10px 0; margin-bottom: 20px; }
         .nav-tab { padding: 10px 20px; cursor: pointer; background: #cbd5e1; margin-right: 4px; border-radius: 6px 6px 0 0; font-weight: 600; color: #475569; transition: 0.2s; }
-        .nav-tab.active { background: white; color: var(--primary); border-top: 3px solid var(--primary); }
-        .tab-content { display: none; padding: 20px; flex: 1; }
+        .nav-tab.active { background: white; color: var(--primary-color); border-top: 3px solid var(--primary-color); }
+        .tab-content { display: none; }
         .tab-content.active { display: block; }
 
-        .grid-layout { display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; }
-        @media(max-width:1000px) { .grid-layout { grid-template-columns: 1fr; } }
-        
-        .card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); height: 100%; display: flex; flex-direction: column; }
-        .card-header { font-size: 1.1rem; font-weight: 700; color: var(--primary); margin-bottom: 15px; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; }
-        
-        input, select, textarea { width: 100%; padding: 8px 12px; margin: 5px 0 15px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; transition: border 0.3s; }
-        input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
-        label { font-size: 0.85rem; font-weight: 600; color: #475569; margin-bottom: 2px; display: block; }
-        
-        .btn { padding: 6px 12px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; color: white; transition: 0.2s; font-size: 0.85rem; }
-        .btn:hover { opacity: 0.9; }
-        .btn-success { background: var(--success); } .btn-primary { background: var(--primary); } .btn-danger { background: var(--danger); } .btn-warning { background: var(--warning); }
-        
-        .autocomplete-wrapper { position: relative; width: 100%; }
-        .autocomplete-items { position: absolute; top: 100%; left: 0; right: 0; z-index: 9999; background: white; border: 1px solid #cbd5e1; max-height: 200px; overflow-y: auto; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); border-radius: 0 0 6px 6px; }
-        .autocomplete-item { padding: 8px 10px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; display: flex; justify-content: space-between; }
-        .autocomplete-item:hover { background: #eff6ff; border-left: 3px solid var(--primary); }
-        
-        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 10px; }
-        th { background: #f8fafc; text-align: left; padding: 10px; font-weight: 700; border: 1px solid #e2e8f0; color: #334155; position: sticky; top: 0; z-index: 10; }
-        td { padding: 4px; border: 1px solid #e2e8f0; vertical-align: top; }
-        .table-input { border: 1px solid transparent; background: transparent; width: 100%; padding: 8px; margin: 0; font-size: 0.9rem; }
-        .table-input:focus { border: 1px solid var(--primary); background: white; border-radius: 4px; }
-        
-        .toast { position: fixed; bottom: 20px; right: 20px; background: #1e293b; color: white; padding: 12px 24px; border-radius: 8px; opacity: 0; transition: 0.3s; z-index: 10000; }
-        .toast.show { opacity: 1; transform: translateY(-10px); }
+        @media print {
+            .no-print, .no-print * { display: none !important; }
+            #connectionStatus { display: none !important; }
+            
+            body { padding: 0; background-color: white; color: #000; }
+            .container { box-shadow: none; padding: 10px; max-width: 100%; border: none; }
+            table { font-size: 12px; }
+            textarea, input[type="text"], input[type="date"], input[type="time"], input[type="number"] {
+                border: none !important;
+                background: transparent !important;
+                padding: 0 !important;
+                color: #000 !important;
+            }
+        }
 
-        .export-item { background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
-        .export-item:hover { border-color: var(--primary); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .export-info { flex: 1; }
-        .export-actions { display: flex; gap: 5px; }
+        /* --- MODAL --- */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+        .modal-content { background-color: #fefefe; padding: 20px; border-radius: 8px; width: 90%; max-width: 1000px; max-height: 90vh; overflow-y: auto; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        .close-modal { float: right; font-size: 24px; font-weight: bold; cursor: pointer; color: #aaa; }
+        .close-modal:hover { color: black; }
+        .paste-area { width: 100%; height: 150px; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; border-radius: 4px; font-family: monospace; color: #000; }
+        .mapping-container { overflow-x: auto; margin-top: 15px; border: 1px solid #eee; }
+        .mapping-table { width: 100%; border-collapse: collapse; }
+        .mapping-table th { background-color: #f0f2f5; color: #333; padding: 5px; border: 1px solid #ddd; }
+        .mapping-table td { padding: 5px; border: 1px solid #ddd; font-size: 12px; white-space: nowrap; color: #000; }
+        .col-select { width: 100%; padding: 5px; border: 1px solid var(--accent-color); border-radius: 4px; font-weight: bold; color: var(--primary-color); }
 
-        /* Footer Log Style */
-        .app-footer {
-            background: #f1f5f9;
-            padding: 10px 20px;
-            border-top: 1px solid #e2e8f0;
-            font-size: 0.85rem;
-            color: #64748b;
-            text-align: right;
-            font-style: italic;
+        /* CSS cho ứng dụng B */
+        .app-b-container {
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-shadow: none !important;
         }
     </style>
 </head>
 <body>
-    <datalist id="master-code-list"></datalist>
-
     <div class="container">
-        <header>
-            <h1>QUẢN LÝ KHO DƯỢC GDP - IDECO</h1>
-            <button class="btn btn-warning" onclick="toggleMasterSection()">
-                📂 Dữ Liệu Gốc (Master)
-            </button>
-        </header>
+        <div class="header">
+            <div class="logo-container">
+                <img src="https://cdn.imgpile.com/f/ZMtwhK9_xl.png" alt="Logo công ty" class="logo">
+            </div>
+            <div class="company-info">
+                <div class="company-name">CÔNG TY TNHH TM DV KẾT GIAO PHÁT TRIỂN QUỐC TẾ IDECO</div>
+                <div class="document-title">BIÊN BẢN NHẬN HÀNG</div>
+                <div class="document-code">BM.06</div>
+            </div>
+            <div class="logo-container" style="visibility: hidden;"></div>
+        </div>
 
         <div class="nav-tabs">
-            <div class="nav-tab active" onclick="switchTab('tab1', this)">1. NHẬP KHO & TỒN KHO</div>
-            <div class="nav-tab" onclick="switchTab('tab2', this)" id="btn-tab2">2. XUẤT KHO & BÁO CÁO</div>
+            <div class="nav-tab active" onclick="switchTab('tab1', this)">BIÊN BẢN NHẬN HÀNG</div>
+            <div class="nav-tab" onclick="switchTab('tab2', this)">QUẢN LÝ KHO</div>
         </div>
 
+        <!-- Tab 1: Biên bản nhận hàng -->
         <div id="tab1" class="tab-content active">
-            <div id="master-section" style="display:none; background:#fffbeb; padding:15px; margin-bottom:20px; border-radius:8px; border:1px solid #fbbf24;">
-                <h3 style="margin-top:0; color:#92400e">Dữ liệu Master</h3>
-                <input type="file" id="master-upload" accept=".xlsx, .xls, .csv">
-                <div id="master-status" style="margin-top:10px; font-weight:bold; color:#059669;"></div>
-                <div id="master-files-list" style="margin-top:10px;"></div>
-            </div>
-
-            <div class="grid-layout">
-                <div class="card">
-                    <div class="card-header">A. Nhập Kho Thủ Công</div>
-                    <label>Tên Hàng Hóa (*)</label>
-                    <div class="autocomplete-wrapper">
-                        <input type="text" id="imp-name" placeholder="Gõ tên thuốc..." autocomplete="off">
-                        <div id="imp-suggest" class="autocomplete-items"></div>
-                    </div>
-                    <div style="display:flex; gap:10px">
-                        <div style="flex:1"><label>Mã SP</label><input type="text" id="imp-code" placeholder="Tự load..." style="background:#f1f5f9; font-weight:bold; color:var(--primary)"></div>
-                        <div style="flex:1"><label>Đơn Vị</label><input type="text" id="imp-unit" placeholder="Hộp/Viên..."></div>
-                    </div>
-                    <div style="display:flex; gap:10px">
-                        <div style="flex:1"><label>Số Lô</label><input type="text" id="imp-lot"></div>
-                        <div style="flex:1"><label>Hạn Dùng</label><input type="date" id="imp-exp"></div>
-                    </div>
-                    <div style="display:flex; gap:10px">
-                        <div style="flex:1"><label>Số Lượng</label><input type="number" id="imp-qty"></div>
-                        <div style="flex:1"><label>Ngày Nhập</label><input type="date" id="imp-date"></div>
-                    </div>
-                    <button class="btn btn-success" style="width:100%" onclick="saveManual()">LƯU NHẬP KHO</button>
+            <!-- Nội dung ứng dụng A -->
+            <div id="contentToPrint">
+                <div id="connectionStatus" class="alert" style="display: none;">
+                    <span class="status-indicator status-offline"></span>
+                    <span id="statusText">Đang kết nối...</span>
                 </div>
 
-                <div class="card">
-                    <div class="card-header">
-                        B. Nhập Hàng Loạt
-                        <div style="float:right">
-                            <button class="btn btn-primary" onclick="toggleMode('paste')">Paste</button>
-                            <button class="btn btn-warning" onclick="toggleMode('file')">Excel</button>
+                <div class="compact-form-section">
+                    <div class="section-title">Thông tin nhận hàng</div>
+                    <div class="form-row">
+                        <div class="compact-form-group">
+                            <label for="supplierName">Tên nhà cung cấp</label>
+                            <input type="text" id="supplierName" list="supplierList" placeholder="Nhập hoặc chọn nhà cung cấp..." autocomplete="off">
+                            <datalist id="supplierList"></datalist>
+                        </div>
+                        <div class="compact-form-group">
+                            <label for="invoiceNumber">Hóa đơn</label>
+                            <input type="text" id="invoiceNumber">
+                        </div>
+                        <div class="compact-form-group">
+                            <label for="contractNumber">Số hợp đồng</label>
+                            <input type="text" id="contractNumber">
                         </div>
                     </div>
-                    <div id="mode-paste">
-                        <p style="font-size:0.85rem; color:#64748b; margin-bottom:5px">Cột: <b>STT | Tên | Đơn Vị | Lô | Hạn | SL</b></p>
-                        <textarea id="paste-area" style="height:80px; width:100%; border:2px dashed #ccc; background:#f9f9f9"></textarea>
-                        <button class="btn btn-primary" style="width:100%; margin-top:5px" onclick="processPaste()">🔍 Soi Chiếu</button>
-                    </div>
-                    <div id="mode-file" style="display:none; padding:10px; border:2px dashed #ddd; text-align:center">
-                        <input type="file" id="import-file" accept=".xlsx, .xls">
-                    </div>
-                    <div id="preview-box" style="display:none; flex:1; flex-direction:column; margin-top:15px; border-top:2px solid #f1f5f9; padding-top:10px;">
-                        <div style="overflow-y:auto; flex:1; min-height:200px;">
-                            <table id="preview-table">
-                                <thead><tr><th style="width:130px">Mã SP</th><th>Tên Hàng Hóa</th><th>Đơn Vị</th><th>Lô</th><th>Hạn</th><th>SL</th><th></th></tr></thead>
-                                <tbody id="preview-body"></tbody>
-                            </table>
+                    <div class="form-row">
+                        <div class="compact-form-group">
+                            <label for="receivingPlace">Nơi nhận hàng</label>
+                            <input type="text" id="receivingPlace" value="003 Carlion 5 262/3 Lũy Bán Bích - Phường Tân Phú -Tp. Hồ Chí Minh">
                         </div>
-                        <button class="btn btn-success" style="width:100%; margin-top:10px" onclick="syncData()">ĐỒNG BỘ VÀO KHO</button>
+                        <div class="compact-form-group">
+                            <label for="receivingDate">Ngày nhận</label>
+                            <input type="date" id="receivingDate">
+                        </div>
+                        <div class="compact-form-group">
+                            <label for="receivingTime">Giờ nhận</label>
+                            <input type="time" id="receivingTime">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="inspectionResult">Kết quả kiểm nghiệm</label>
+                            <textarea id="inspectionResult" rows="2"></textarea>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="card" style="margin-top:20px; height:auto">
-                <div class="card-header">
-                    Danh Sách Tồn Kho
-                    <button class="btn btn-danger" style="float:right;" onclick="requestDeleteAll()">⚠️ Xóa Tất Cả</button>
-                </div>
-                <div style="display:flex; gap:10px; margin-bottom:10px">
-                    <input type="text" id="search-stock" placeholder="Tìm kiếm..." style="flex:2">
-                    <select id="sort-stock" style="flex:1"><option value="newest">Mới nhập</option><option value="name">Tên A-Z</option></select>
-                </div>
-                <div style="overflow-x:auto; max-height:500px">
-                    <table id="stock-table">
-                        <thead><tr><th>STT</th><th>Mã SP</th><th>Tên Hàng Hóa</th><th>Đơn Vị</th><th>Số Lô</th><th>Hạn Dùng</th><th>Tồn</th><th>Thao Tác</th></tr></thead>
-                        <tbody id="stock-body"></tbody>
+                <div class="compact-form-section">
+                    <div class="section-title">Danh mục thuốc nhận hàng</div>
+                    <table id="productTable" class="compact-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">STT</th>
+                                <th style="width: 200px;">Tên hàng</th>
+                                <th style="width: 80px;">ĐVT</th>
+                                <th style="width: 90px;">Số Lô</th>
+                                <th style="width: 90px;">Hạn SD</th>
+                                <th style="width: 80px;">SL<br>Thực tế</th>
+                                <th style="width: 60px;">Thừa</th>
+                                <th style="width: 60px;">Thiếu</th>
+                                <th style="width: 60px;">Hỏng</th>
+                                <th style="width: 100px;">Tình trạng</th>
+                                <th style="width: 100px;">Ghi chú</th>
+                                <th style="width: 50px;" class="no-print">Xóa</th>
+                            </tr>
+                        </thead>
+                        <tbody id="productTableBody"></tbody>
                     </table>
+                    <button type="button" id="addProductBtn" class="btn-secondary no-print" style="margin-top: 10px;"><span>+</span> Thêm sản phẩm</button>
                 </div>
+
+                <div class="receiving-info">
+                    <div class="receiving-info-row"><div class="receiving-info-label">Giao nhận vận chuyển:</div><input type="text" class="receiving-info-input" id="deliveryTransport"></div>
+                    <div class="receiving-info-row"><div class="receiving-info-label">Điều kiện thanh toán:</div><input type="text" class="receiving-info-input" id="paymentCondition"></div>
+                    <div class="receiving-info-row"><div class="receiving-info-label">Các yêu cầu khác:</div><input type="text" class="receiving-info-input" id="otherRequirements"></div>
+                </div>
+
+                <div class="signature-section">
+                    <div class="signature-box">
+                        <div class="signature-line">Bộ Phận Kho/Kế toán</div>
+                        <input type="text" id="deptStaffName" placeholder="Họ tên" style="width: 100%; margin-top: 5px; text-align: center; border: none; border-bottom: 1px dashed #ccc; background: transparent; outline: none; color: #000;">
+                    </div>
+                    <div class="signature-box">
+                        <div class="signature-line">Người lập biên bản</div>
+                        <input type="text" id="preparerName" placeholder="Họ tên" style="width: 100%; margin-top: 5px; text-align: center; border: none; border-bottom: 1px dashed #ccc; background: transparent; outline: none; color: #000;">
+                    </div>
+                    <div class="signature-box">
+                        <div class="signature-line">Phụ trách chuyên môn</div>
+                        <input type="text" id="warehouseStaffName" value="Nguyễn Minh Tâm" placeholder="Họ tên" style="width: 100%; margin-top: 5px; text-align: center; border: none; border-bottom: 1px dashed #ccc; background: transparent; outline: none; color: #000;">
+                    </div>
+                </div>
+            </div>
+
+            <div class="upload-section no-print">
+                <div class="section-title">Nhập dữ liệu (Upload Excel hoặc Dán từ Clipboard)</div>
+                <div class="form-row" style="align-items: flex-end;">
+                    <div class="form-group">
+                        <label for="dataFile">Chọn file Excel (.xlsx, .xls)</label>
+                        <input type="file" id="dataFile" accept=".xlsx,.xls">
+                    </div>
+                    <div class="form-group" style="flex: 0 0 auto; display: flex; align-items: center; padding-bottom: 5px;">
+                        <span style="margin: 0 10px; font-weight: bold;">HOẶC</span>
+                    </div>
+                    <div class="form-group">
+                        <button type="button" id="openPasteModalBtn" class="btn-teal" style="width: 100%; justify-content: center; padding: 10px;">
+                            📋 Dán dữ liệu từ Excel/Sheet
+                        </button>
+                    </div>
+                </div>
+                <div id="uploadMessage"></div>
+            </div>
+
+            <div class="utility-buttons no-print">
+                <button type="button" id="cameraAiBtn" class="btn-purple" onclick="openCameraAI()">📷 ChụpAI</button>
+                <button type="button" id="erpHomeBtn" class="btn-purple" onclick="openERPHome()">🏠 ERP HOME</button>
+                <button type="button" id="feboBtn" class="btn-febo" onclick="importToFebo()">📦 Nhập kho FEBO</button>
+            </div>
+
+            <div class="action-buttons no-print">
+                <button type="button" id="saveBtn" class="btn-primary">💾 Lưu & Tạo PDF</button>
+                <button type="button" id="exportExcelBtn" class="btn-info">📊 Xuất Excel</button>
+                <button type="button" id="exportPdfBtn" class="btn-warning">📄 Xuất PDF</button>
+                <button type="button" id="printBtn" class="btn-secondary">🖨️ In</button>
+                <button type="button" id="resetBtn" class="btn-danger">🔄 Làm mới</button>
+            </div>
+
+            <div class="saved-files-section no-print">
+                <div class="section-title">Danh sách file PDF đã lưu</div>
+                <div class="files-list" id="filesList"><div class="file-item"><div class="file-info"><div class="file-name">Đang tải danh sách...</div></div></div></div>
+            </div>
+            
+            <div class="pdf-options no-print" id="pdfOptions" style="display: none;">
+                <h4 style="margin-top: 0;">Tùy chọn xuất PDF:</h4>
+                <label><input type="radio" name="pageOrientation" value="portrait" checked> Khổ dọc (A4)</label>
+                <label><input type="radio" name="pageOrientation" value="landscape"> Khổ ngang (A4)</label>
+                <button type="button" id="confirmExportPdf" class="btn-primary">Xác nhận</button>
+                <button type="button" id="cancelExportPdf" class="btn-danger">Hủy</button>
             </div>
         </div>
 
+        <!-- Tab 2: Quản lý kho - Ứng dụng B -->
         <div id="tab2" class="tab-content">
-            <div class="grid-layout">
-                <div class="card">
-                    <div class="card-header">Phiếu Xuất Kho</div>
-                    <label>Tìm sản phẩm xuất:</label>
-                    <div class="autocomplete-wrapper">
-                        <input type="text" id="exp-name" placeholder="Gõ tên thuốc..." autocomplete="off">
-                        <div id="exp-suggest" class="autocomplete-items"></div>
-                    </div>
-                    <div id="lot-list" style="margin-top:10px; min-height:50px"></div>
-                    <hr>
-                    <div style="display:flex; gap:10px">
-                         <input type="number" id="exp-qty" placeholder="SL Xuất" disabled style="flex:1">
-                         <input type="text" id="exp-unit" placeholder="Đơn vị" readonly style="flex:1; background:#eee">
-                    </div>
-                    <input type="text" id="exp-dest" placeholder="Nơi nhận">
-                    <input type="date" id="exp-date">
-                    <button class="btn btn-warning" id="btn-export" style="width:100%" disabled onclick="confirmExport()">XÁC NHẬN XUẤT</button>
-                </div>
-
-                <div class="card">
-                    <div class="card-header">Lịch Sử Xuất Kho</div>
-                    <button class="btn btn-success" style="width:100%; margin-bottom:10px" onclick="exportHistoryExcel()">Xuất Excel Lịch Sử</button>
-                    <div id="export-list" style="overflow-y:auto; flex:1; max-height:500px; border:1px solid #f1f5f9; padding:5px; border-radius:6px;"></div>
-                </div>
-            </div>
-
-            <div class="card" style="margin-top:20px; height:auto">
-                <div class="card-header">Báo Cáo Nhập Xuất Tồn</div>
-                <div style="display:flex; gap:10px">
-                    <input type="date" id="rpt-start">
-                    <input type="date" id="rpt-end">
-                    <button class="btn btn-primary" onclick="genReport()">Xem</button>
-                    <button class="btn btn-success" onclick="exportReportExcel()">Excel</button>
-                </div>
-                <div style="overflow-x:auto; margin-top:10px">
-                    <table id="rpt-table">
-                        <thead><tr><th>Tên Hàng Hóa</th><th>Đơn Vị</th><th>Tồn Đầu</th><th>Nhập</th><th>Xuất</th><th>Tồn Cuối</th></tr></thead>
-                        <tbody id="rpt-body"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <div class="app-footer" id="app-footer">
-            Hệ thống quản lý kho dược IDECO.
-        </div>
-    </div>
-
-    <div id="delete-security-modal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10002; align-items:center; justify-content:center;">
-        <div style="background:white; padding:25px; border-radius:12px; width:90%; max-width:400px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);">
-            <h3 style="color:var(--danger); margin-top:0;">⚠️ XÓA TOÀN BỘ DỮ LIỆU</h3>
-            <p style="color:#666; font-size:0.9rem;">Hành động này không thể hoàn tác. Vui lòng khai báo danh tính.</p>
-            
-            <label>Tên người xóa (*)</label>
-            <input type="text" id="del-user-name" placeholder="Nhập họ tên...">
-            
-            <label>Mật khẩu quản trị (*)</label>
-            <input type="password" id="del-password" placeholder="Nhập mật khẩu...">
-
-            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:15px">
-                <button class="btn btn-danger" onclick="confirmDeleteAll()">XÁC NHẬN XÓA</button>
-                <button class="btn btn-light" onclick="document.getElementById('delete-security-modal').style.display='none'" style="border:1px solid #ccc; color:#333">Hủy bỏ</button>
+            <div class="app-b-container">
+                <!-- Nội dung ứng dụng B sẽ được hiển thị ở đây -->
+                <div id="appBContent"></div>
             </div>
         </div>
     </div>
 
-    <div id="edit-modal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center;">
-        <div style="background:white; padding:20px; border-radius:8px; width:90%; max-width:400px;">
-            <h3>Sửa Tồn Kho</h3>
-            <input type="hidden" id="edit-id">
-            <input type="text" id="edit-name" placeholder="Tên">
-            <input type="text" id="edit-code" placeholder="Mã">
-            <input type="text" id="edit-unit" placeholder="Đơn vị">
-            <input type="text" id="edit-lot" placeholder="Lô">
-            <input type="date" id="edit-exp">
-            <input type="number" id="edit-qty">
-            <div style="display:flex; justify-content:flex-end; gap:10px">
-                <button class="btn btn-success" onclick="saveEdit()">Lưu</button>
-                <button class="btn btn-danger" onclick="document.getElementById('edit-modal').style.display='none'">Hủy</button>
+    <!-- Modal cho ứng dụng A -->
+    <div id="pasteModal" class="modal no-print">
+        <div class="modal-content">
+            <span class="close-modal" id="closePasteModal">&times;</span>
+            <h3 style="margin-top: 0; color: var(--primary-color);">Dán và Ánh xạ dữ liệu</h3>
+            <p style="font-size: 13px; color: #666;">Copy dữ liệu từ Excel (bao gồm cả nhiều cột) và dán vào ô bên dưới. Sau đó chọn cột tương ứng ở bảng xem trước.</p>
+            <textarea id="pasteInput" class="paste-area" placeholder="Dán dữ liệu vào đây (Ctrl + V)..."></textarea>
+            <div id="previewContainer" style="display: none;">
+                <h4 style="margin-bottom: 5px;">Xem trước & Chọn cột (Mapping):</h4>
+                <div class="mapping-container">
+                    <table class="mapping-table" id="mappingTable"></table>
+                </div>
+                <div style="margin-top: 15px; text-align: right;">
+                    <button type="button" id="processPasteBtn" class="btn-primary">📥 Nhập dữ liệu vào bảng</button>
+                </div>
             </div>
         </div>
     </div>
-
-    <div id="edit-export-modal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center;">
-        <div style="background:white; padding:20px; border-radius:8px; width:90%; max-width:400px;">
-            <h3 style="color:var(--warning)">Sửa Phiếu Xuất</h3>
-            <input type="hidden" id="edit-ex-id">
-            <input type="hidden" id="edit-ex-related">
-            <input type="hidden" id="edit-ex-old-qty">
-            <label>Tên Hàng Hóa</label>
-            <input type="text" id="edit-ex-name" disabled style="background:#eee">
-            <label>Số Lượng Xuất</label>
-            <input type="number" id="edit-ex-qty">
-            <label>Nơi Nhận</label>
-            <input type="text" id="edit-ex-dest">
-            <label>Ngày Xuất</label>
-            <input type="date" id="edit-ex-date">
-            <div style="display:flex; justify-content:flex-end; gap:10px">
-                <button class="btn btn-warning" onclick="saveExportEdit()">Cập Nhật</button>
-                <button class="btn btn-danger" onclick="document.getElementById('edit-export-modal').style.display='none'">Đóng</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="toast" id="toast">Thông báo</div>
 
     <script>
-        // FIREBASE CONFIG
-        const firebaseConfig = {
-            apiKey: "AIzaSyB54vAqmLmkMPq-L0X69oRS2DdVxxtrLPc",
-            authDomain: "quanlykho-5c64f.firebaseapp.com",
-            projectId: "quanlykho-5c64f",
-            storageBucket: "quanlykho-5c64f.firebasestorage.app",
-            messagingSenderId: "106024120320",
-            appId: "1:106024120320:web:ede1dae16cb6cccd42e8e5"
+        // --- CONFIG & INIT cho ứng dụng A ---
+        const firebaseConfig = { 
+            apiKey: "AIzaSyCM_gZ1DEOtUwB0Ii-dm-6jIpxydoJU4-E", 
+            authDomain: "dulieuthuoc-d532e.firebaseapp.com", 
+            projectId: "dulieuthuoc-d532e", 
+            storageBucket: "dulieuthuoc-d532e.firebasestorage.app", 
+            messagingSenderId: "70002622120", 
+            appId: "1:70002622120:web:9676e1616a0774bae28c9d", 
+            measurementId: "G-LQ5P054T97" 
         };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-        const refs = { 
-            items: db.ref('pharmaceuticals'), 
-            master: db.ref('excelFiles'), 
-            exports: db.ref('exports'),
-            logs: db.ref('systemLogs') // Thêm ref Log
-        };
-
-        let stockData=[], exportData=[], masterData=[], previewData=[], currentExportLot=null;
-
-        // INIT DATE
-        document.getElementById('imp-date').valueAsDate = new Date();
-        document.getElementById('exp-date').valueAsDate = new Date();
-        document.getElementById('rpt-start').valueAsDate = new Date(new Date().getFullYear(), 0, 1);
-        document.getElementById('rpt-end').valueAsDate = new Date();
-
-        // LOADING DATA
-        refs.master.on('value', s => { const d=s.val(); const f=d?Object.keys(d).map(k=>({id:k,...d[k]})):[]; renderMasterFilesList(f); refreshMasterData(f); });
-        refs.items.on('value', s => { const d=s.val(); stockData=d?Object.keys(d).map(k=>({id:k,...d[k]})):[]; renderStockTable(); refs.master.once('value', s=>{const fd=s.val();const f=fd?Object.keys(fd).map(k=>({id:k,...fd[k]})):[]; refreshMasterData(f);}); });
-        refs.exports.on('value', s => { const d=s.val(); exportData=d?Object.keys(d).map(k=>({id:k,...d[k]})):[]; renderExportHistory(); });
         
-        // LOAD LOG (MỚI)
-        refs.logs.on('value', s => {
-            const log = s.val();
-            const footer = document.getElementById('app-footer');
-            if(log && log.lastDeletedBy) {
-                const date = new Date(log.deletedAt).toLocaleString('vi-VN');
-                footer.innerHTML = `⚠️ Dữ liệu bị xóa toàn bộ lần cuối bởi: <b>${log.lastDeletedBy}</b> vào lúc ${date}`;
-                footer.style.color = '#ef4444';
-            } else {
-                footer.innerHTML = 'Hệ thống quản lý kho dược IDECO - An toàn.';
-                footer.style.color = '#64748b';
+        let db, storage;
+
+        try { 
+            firebase.initializeApp(firebaseConfig); 
+            db = firebase.firestore(); 
+            storage = firebase.storage(); 
+            console.log("Firebase OK"); 
+        } catch (error) { 
+            console.error("Firebase error:", error); 
+        }
+
+        // Biến toàn cục để lưu dữ liệu từ ứng dụng A
+        let appADataForFebo = [];
+
+        // --- UTILS ---
+        function autoResize(el) { 
+            el.style.height = 'auto'; 
+            el.style.height = el.scrollHeight + 'px'; 
+        }
+        
+        function openCameraAI() { 
+            window.open('https://idecochupanh.netlify.app', '_blank'); 
+        }
+        
+        function openERPHome() { 
+            window.open('https://erp-ideco.skyit.vn/#/app/dashboard/main', '_blank'); 
+        }
+        
+        function showMessage(msg, type = 'success') { 
+            const el = document.getElementById('uploadMessage'); 
+            el.innerHTML = `<div class="alert alert-${type}">${msg}</div>`; 
+            setTimeout(() => el.innerHTML = '', 5000); 
+        }
+        
+        function formatDateForInput(dateString) {
+            if (!dateString) return '';
+            const str = String(dateString).trim();
+            
+            if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
+                const parts = str.split('/');
+                return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
             }
-        });
-
-        // LOGIC FUNCTIONS
-        function cleanStr(str) { if(!str) return ''; return str.toLowerCase().replace(/^th[_\-\s]+|thuốc\s+/g, '').trim(); }
-        function findColumnValue(row, names) { const keys=Object.keys(row); const lower=keys.map(k=>k.toLowerCase().trim()); for(const n of names) { const idx=lower.indexOf(n.toLowerCase()); if(idx!==-1) return row[keys[idx]]; } return null; }
-
-        function refreshMasterData(files) {
-            const map = new Map();
-            files.forEach(f => { if(f.data) f.data.forEach(r => { const name = findColumnValue(r, ['Tên Hàng Hóa','Tên','Product Name']); const code = findColumnValue(r, ['Mã SP','Mã','Code']); const unit = findColumnValue(r, ['Đơn Vị','Unit']); if(name) { const k=cleanStr(name); map.set(k, { name: name, code: code||'', unit: unit||'', searchKey: k }); } }); });
-            stockData.forEach(s => { if(s.productName) { const k=cleanStr(s.productName); if(!map.has(k)) map.set(k, { name: s.productName, code: s.productCode||'', unit: s.unit||'', searchKey: k }); } });
-            masterData = Array.from(map.values());
-            document.getElementById('master-status').innerText = `✅ Đã học ${masterData.length} mã.`;
-            document.getElementById('master-code-list').innerHTML = masterData.filter(m => m.code).map(m => `<option value="${m.code}">${m.name}</option>`).join('');
+            if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+            
+            return str;
         }
 
-        function findBestMatch(inputName) { if (!inputName) return null; const cleanInput = cleanStr(inputName); let match = masterData.find(m => m.searchKey === cleanInput); if (match) return match; return masterData.find(m => cleanInput.includes(m.searchKey) || m.searchKey.includes(cleanInput)); }
-
-        // AUTOCOMPLETE
-        function showSuggestions(input, type, container, callback) {
-            const val = cleanStr(input.value); container.innerHTML = ''; if(!val) return;
-            let matches = [];
-            if(type === 'name') matches = masterData.filter(m => m.searchKey.includes(val) || (m.code && m.code.toLowerCase().includes(val))).slice(0, 10);
-            else if (type === 'code') matches = masterData.filter(m => (m.code && m.code.toLowerCase().includes(val))).slice(0, 10);
-
-            matches.forEach(m => {
-                const div = document.createElement('div'); div.className = 'autocomplete-item';
-                div.innerHTML = `<div><strong>${m.name}</strong></div><small style="color:#059669">${m.code||'--'}</small>`;
-                div.onmousedown = (e) => { e.preventDefault(); callback(m); container.innerHTML = ''; };
-                container.appendChild(div);
-            });
-        }
-
-        document.getElementById('imp-name').addEventListener('input', function() { showSuggestions(this, 'name', document.getElementById('imp-suggest'), (m) => { this.value = m.name; document.getElementById('imp-code').value = m.code||''; document.getElementById('imp-unit').value = m.unit||''; }); });
-        document.getElementById('imp-name').addEventListener('blur', () => setTimeout(() => document.getElementById('imp-suggest').innerHTML='', 200));
-
-        // TABLE LOGIC
-        document.getElementById('import-file').addEventListener('change', e => {
-            const f=e.target.files[0]; if(!f) return;
-            const r=new FileReader(); r.onload=evt=>{
-                const wb=XLSX.read(new Uint8Array(evt.target.result), {type:'array'});
-                const ws=wb.Sheets[wb.SheetNames[0]];
-                const rows=XLSX.utils.sheet_to_json(ws, {header: 1});
-                if(!rows || rows.length===0) return;
-                let data=[];
-                const hasHeader=rows[0].join(' ').toLowerCase().includes('tên');
-                if(hasHeader) {
-                    const json=XLSX.utils.sheet_to_json(ws);
-                    data=json.map(r=>({ name:findColumnValue(r,['Tên Hàng Hóa','Tên']), unit:findColumnValue(r,['Đơn Vị','Unit']), lot:findColumnValue(r,['Số Lô','Lô']), exp:parseDate(findColumnValue(r,['Hạn Sử Dụng','Hạn'])), qty:findColumnValue(r,['Số Lượng','SL']) }));
-                } else {
-                    data=rows.map(r=>({ name:r[1], unit:r[2], lot:r[3], exp:parseDate(r[4]), qty:r[5] })).filter(d=>d.name);
-                }
-                generatePreview(data);
-            }; r.readAsArrayBuffer(f);
-        });
-
-        window.processPaste=()=>{ const txt=document.getElementById('paste-area').value; if(!txt) return; const rows=txt.trim().split('\n').map(r=>r.split('\t')); const data=rows.map(c=>({ name:c[1], unit:c[2], lot:c[3], exp:parseDate(c[4]), qty:c[5] })); generatePreview(data); }
-
-        function generatePreview(data) {
-            previewData = data.map((d, i) => { const match = findBestMatch(d.name); return { id: i, productName: d.name, productCode: match ? match.code : '', unit: d.unit || (match ? match.unit : ''), lotNumber: d.lot, expiryDate: d.exp, quantity: d.qty }; });
-            renderPreviewTable(); document.getElementById('preview-box').style.display='flex';
-        }
-
-        function renderPreviewTable() {
-            const tb = document.getElementById('preview-body'); tb.innerHTML = '';
-            previewData.forEach((d, i) => {
-                const tr = document.createElement('tr');
-                const tdCode = document.createElement('td'); tdCode.style.position='relative';
-                const inpCode = document.createElement('input'); inpCode.className = 'table-input ' + (d.productCode?'code-found':''); inpCode.list="master-code-list"; inpCode.value = d.productCode || '';
-                const sugCode = document.createElement('div'); sugCode.className = 'autocomplete-items';
-                inpCode.oninput = function() { d.productCode = this.value; showSuggestions(this, 'code', sugCode, (m) => { d.productCode = m.code; d.productName = m.name; d.unit = m.unit; this.value = m.code; tr.querySelector('.inp-name').value = m.name; tr.querySelector('.inp-unit').value = m.unit; }); };
-                inpCode.onblur = () => setTimeout(()=>sugCode.innerHTML='', 200);
-                tdCode.append(inpCode, sugCode);
-
-                const tdName = document.createElement('td'); tdName.style.position='relative';
-                const inpName = document.createElement('input'); inpName.className = 'table-input inp-name'; inpName.value = d.productName || '';
-                const sugName = document.createElement('div'); sugName.className = 'autocomplete-items';
-                inpName.oninput = function() { d.productName = this.value; showSuggestions(this, 'name', sugName, (m) => { d.productName = m.name; d.productCode = m.code; d.unit = m.unit; this.value = m.name; tr.querySelector('.table-input').value = m.code; tr.querySelector('.inp-unit').value = m.unit; }); };
-                inpName.onblur = () => setTimeout(()=>sugName.innerHTML='', 200);
-                tdName.append(inpName, sugName);
-
-                const tdUnit = document.createElement('td'); tdUnit.innerHTML = `<input class="table-input inp-unit" value="${d.unit||''}" onchange="previewData[${i}].unit=this.value">`;
-                const tdLot = document.createElement('td'); tdLot.innerHTML = `<input class="table-input" value="${d.lotNumber||''}" onchange="previewData[${i}].lotNumber=this.value">`;
-                const tdExp = document.createElement('td'); tdExp.innerHTML = `<input type="date" class="table-input" value="${d.expiryDate||''}" onchange="previewData[${i}].expiryDate=this.value">`;
-                const tdQty = document.createElement('td'); tdQty.innerHTML = `<input type="number" class="table-input" value="${d.quantity||''}" onchange="previewData[${i}].quantity=this.value">`;
-                const tdAct = document.createElement('td'); tdAct.innerHTML = `<button class="btn btn-danger" style="padding:2px 5px" onclick="removePreviewItem(${i})">X</button>`;
-                tr.append(tdCode, tdName, tdUnit, tdLot, tdExp, tdQty, tdAct); tb.appendChild(tr);
-            });
-        }
-        window.removePreviewItem = (i) => { previewData.splice(i, 1); renderPreviewTable(); }
-        window.syncData = async () => { let c=0; for(const d of previewData) { if(d.productName && d.quantity) { await saveToInventory({ productName: d.productName, productCode: d.productCode, unit: d.unit, lotNumber: d.lotNumber, expiryDate: d.expiryDate, quantity: parseInt(d.quantity), importDate: new Date().toISOString().split('T')[0], createdAt: new Date().toISOString() }); c++; } } showToast(`Đã nhập ${c} dòng`, 'success'); document.getElementById('preview-box').style.display='none'; }
-
-        async function saveToInventory(item) {
-            const exist = stockData.find(s => s.productName.toLowerCase()===item.productName.toLowerCase() && s.lotNumber===item.lotNumber && s.expiryDate===item.expiryDate);
-            if(exist) await refs.items.child(exist.id).update({ quantity: parseInt(exist.quantity)+parseInt(item.quantity), unit: item.unit, productCode: item.productCode||exist.productCode });
-            else await refs.items.push(item);
-        }
-
-        // --- HISTORY FUNCTIONS ---
-        function renderExportHistory() {
-            const div = document.getElementById('export-list'); div.innerHTML = '';
-            const list = exportData.sort((a,b)=>new Date(b.exportDate)-new Date(a.exportDate));
-            if(list.length === 0) { div.innerHTML='<div style="padding:10px; color:#999; text-align:center">Chưa có lịch sử xuất.</div>'; return; }
-            list.forEach(e => {
-                const item = document.createElement('div'); item.className = 'export-item';
-                item.innerHTML = `<div class="export-info"><strong>${e.productName}</strong> <span style="color:#666">(${e.unit || '-'})</span><br><small>Lô: ${e.lotNumber} | Hạn: ${e.expiryDate} | SL: <b style="color:var(--danger)">${e.quantity}</b></small><br><small style="color:#888">Ngày: ${e.exportDate} -> ${e.destination}</small></div><div class="export-actions"><button class="btn btn-warning" onclick="openEditExport('${e.id}')">Sửa</button><button class="btn btn-danger" onclick="deleteExport('${e.id}')">Xóa</button></div>`;
-                div.appendChild(item);
-            });
-        }
-        window.deleteExport = async (id) => {
-            if(!confirm('Xóa phiếu xuất và hoàn kho?')) return;
-            const ex = exportData.find(x => x.id === id);
-            const stk = stockData.find(s => s.id === ex.relatedId);
-            if(stk) await refs.items.child(stk.id).update({ quantity: parseInt(stk.quantity) + parseInt(ex.quantity) });
-            await refs.exports.child(id).remove();
-            showToast('Đã xóa phiếu xuất', 'success');
-        }
-        window.openEditExport = (id) => {
-            const ex = exportData.find(x => x.id === id);
-            document.getElementById('edit-ex-id').value = id;
-            document.getElementById('edit-ex-related').value = ex.relatedId;
-            document.getElementById('edit-ex-old-qty').value = ex.quantity;
-            document.getElementById('edit-ex-name').value = ex.productName;
-            document.getElementById('edit-ex-qty').value = ex.quantity;
-            document.getElementById('edit-ex-dest').value = ex.destination;
-            document.getElementById('edit-ex-date').value = ex.exportDate;
-            document.getElementById('edit-export-modal').style.display = 'flex';
-        }
-        window.saveExportEdit = async () => {
-            const id = document.getElementById('edit-ex-id').value;
-            const relatedId = document.getElementById('edit-ex-related').value;
-            const oldQty = parseInt(document.getElementById('edit-ex-old-qty').value);
-            const newQty = parseInt(document.getElementById('edit-ex-qty').value);
-            const newDest = document.getElementById('edit-ex-dest').value;
-            const newDate = document.getElementById('edit-ex-date').value;
-            if(newQty < 0) return showToast('Số lượng không hợp lệ', 'error');
-            const stk = stockData.find(s => s.id === relatedId);
-            if(!stk) return alert('Lô hàng gốc đã hết hoặc bị xóa!');
-            const stockAfterRevert = parseInt(stk.quantity) + oldQty;
-            if(newQty > stockAfterRevert) return alert(`Không đủ tồn kho! Tối đa: ${stockAfterRevert}`);
-            await refs.items.child(relatedId).update({ quantity: stockAfterRevert - newQty });
-            await refs.exports.child(id).update({ quantity: newQty, destination: newDest, exportDate: newDate });
-            document.getElementById('edit-export-modal').style.display = 'none';
-            showToast('Đã cập nhật', 'success');
-        }
-
-        // --- EXPORT AUTOCOMPLETE ---
-        document.getElementById('exp-name').addEventListener('input', function(){
-            const v=cleanStr(this.value); const l=document.getElementById('exp-suggest'); l.innerHTML=''; if(!v)return;
-            const m=stockData.filter(d=>parseInt(d.quantity)>0 && cleanStr(d.productName).includes(v));
-            [...new Set(m.map(x=>x.productName))].forEach(n=>{
-                const d=document.createElement('div'); d.className='autocomplete-item'; d.innerText=n; d.onmousedown=(e)=>{e.preventDefault(); handleProductClick(n);l.innerHTML='';}; l.appendChild(d);
-            });
-        });
-        document.getElementById('exp-name').addEventListener('blur', ()=>setTimeout(()=>document.getElementById('exp-suggest').innerHTML='',200));
-
-        window.handleProductClick = function(name) {
-            document.getElementById('btn-tab2').click(); window.scrollTo({top:0,behavior:'smooth'}); document.getElementById('exp-name').value=name;
-            const l=document.getElementById('lot-list'); l.innerHTML='';
-            stockData.filter(d=>d.productName===name && parseInt(d.quantity)>0).sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate)).forEach((lot,i)=>{
-                const el=document.createElement('div'); el.style.padding='10px'; el.style.border=i===0?'2px solid green':'1px solid #ddd'; el.style.margin='5px 0';
-                el.innerHTML=`Lô: <b>${lot.lotNumber}</b> | Hạn: ${lot.expiryDate} | SL: ${lot.quantity}`;
-                el.onclick=()=>{ currentExportLot=lot; document.getElementById('exp-qty').disabled=false; document.getElementById('exp-qty').max=lot.quantity; document.getElementById('exp-unit').value=lot.unit||''; document.getElementById('btn-export').disabled=false; };
-                l.appendChild(el);
-            });
-        }
-        window.confirmExport=async()=>{
-            const q=parseInt(document.getElementById('exp-qty').value);
-            await refs.exports.push({productName:currentExportLot.productName, productCode: currentExportLot.productCode, unit: currentExportLot.unit, lotNumber: currentExportLot.lotNumber, expiryDate: currentExportLot.expiryDate, quantity:q, destination:document.getElementById('exp-dest').value, exportDate:document.getElementById('exp-date').value, relatedId:currentExportLot.id});
-            await refs.items.child(currentExportLot.id).update({quantity:parseInt(currentExportLot.quantity)-q});
-            showToast('Xuất OK','success'); document.getElementById('lot-list').innerHTML=''; document.getElementById('exp-qty').value=''; document.getElementById('btn-export').disabled=true;
-        }
-
-        // --- SECURITY DELETE ---
-        window.requestDeleteAll = () => { document.getElementById('delete-security-modal').style.display='flex'; }
+        // --- CORE FUNCTIONS ---
+        let productCount = 0;
         
-        window.confirmDeleteAll = async () => {
-            const name = document.getElementById('del-user-name').value;
-            const pass = document.getElementById('del-password').value;
-            if(pass !== 'ideco2025') return showToast('Mật khẩu sai!', 'error');
-            if(!name) return showToast('Vui lòng nhập tên!', 'error');
+        function addNewProductRow(data = {}) {
+            productCount++;
+            const tr = document.createElement('tr');
+            
+            const name = data['Tên Hàng Hóa'] || data['Tên hàng'] || data['productName'] || '';
+            const unit = data['Đơn Vị'] || data['Đơn vị tính'] || data['unit'] || 'Hộp';
+            const lot = data['Số Lô'] || data['Số lô'] || data['lotNumber'] || '';
+            const expiryRaw = data['Hạn Dùng'] || data['Hạn sử dụng'] || data['Hạn Sử Dụng'] || data['expiryDate'] || '';
+            const expiry = formatDateForInput(expiryRaw);
+            const qty = data['Tổng Số Lượng'] || data['Số lượng'] || data['Số Lượng'] || data['actualQuantity'] || '';
 
-            if(confirm('CẢNH BÁO CUỐI CÙNG: Bạn có chắc chắn xóa vĩnh viễn không?')) {
-                await refs.items.remove(); // Xóa tồn kho
-                await refs.exports.remove(); // Xóa lịch sử xuất (nếu muốn sạch 100%)
-                
-                // Ghi Log
-                await refs.logs.set({
-                    lastDeletedBy: name,
-                    deletedAt: new Date().toISOString()
+            tr.innerHTML = `
+                <td>${productCount}</td>
+                <td><textarea name="productName" class="auto-resize" rows="1" oninput="autoResize(this)">${name}</textarea></td>
+                <td><input type="text" name="unit" value="${unit}"></td>
+                <td><input type="text" name="lotNumber" value="${lot}"></td>
+                <td><input type="date" name="expiryDate" value="${expiry}"></td>
+                <td><input type="number" name="actualQuantity" min="0" value="${qty}"></td>
+                <td><input type="number" name="excessQuantity" min="0" value="${data['excessQuantity']||0}"></td>
+                <td><input type="number" name="shortageQuantity" min="0" value="${data['shortageQuantity']||0}"></td>
+                <td><input type="number" name="damagedQuantity" min="0" value="${data['damagedQuantity']||0}"></td>
+                <td>
+                    <select name="packageCondition">
+                        <option value="Nguyên vẹn" ${data['packageCondition'] === 'Nguyên vẹn' ? 'selected' : ''}>Nguyên vẹn</option>
+                        <option value="Hư hỏng nhẹ" ${data['packageCondition'] === 'Hư hỏng nhẹ' ? 'selected' : ''}>Hư hỏng nhẹ</option>
+                        <option value="Hư hỏng nặng" ${data['packageCondition'] === 'Hư hỏng nặng' ? 'selected' : ''}>Hư hỏng nặng</option>
+                    </select>
+                </td>
+                <td><input type="text" name="note" value="${data['note']||''}"></td>
+                <td class="no-print"><button type="button" class="btn-danger remove-product" style="padding: 4px;">Xóa</button></td>
+            `;
+            
+            document.getElementById('productTableBody').appendChild(tr);
+            const ta = tr.querySelector('textarea'); 
+            if(ta.value) autoResize(ta);
+            
+            tr.querySelector('.remove-product').addEventListener('click', () => { 
+                tr.remove(); 
+                let i=0; 
+                document.querySelectorAll('#productTableBody tr').forEach(r => r.cells[0].textContent = ++i); 
+                productCount=i;
+                saveDataToFirebase(); 
+            });
+        }
+
+        function resetForm() {
+            if(!confirm('Xóa hết làm mới?')) return;
+            document.querySelectorAll('input, select, textarea').forEach(el => {
+                if(el.id!=='receivingPlace' && el.id!=='warehouseStaffName') el.value = '';
+            });
+            document.getElementById('productTableBody').innerHTML = ''; 
+            productCount = 0;
+            const now = new Date();
+            document.getElementById('receivingDate').valueAsDate = now;
+            document.getElementById('receivingTime').value = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+            saveDataToFirebase();
+        }
+
+        function collectData() {
+            const prods = [];
+            document.querySelectorAll('#productTableBody tr').forEach(r => {
+                prods.push({
+                    productName: r.querySelector('[name="productName"]').value,
+                    unit: r.querySelector('[name="unit"]').value,
+                    lotNumber: r.querySelector('[name="lotNumber"]').value,
+                    expiryDate: r.querySelector('[name="expiryDate"]').value,
+                    actualQuantity: r.querySelector('[name="actualQuantity"]').value,
+                    excessQuantity: r.querySelector('[name="excessQuantity"]').value,
+                    shortageQuantity: r.querySelector('[name="shortageQuantity"]').value,
+                    damagedQuantity: r.querySelector('[name="damagedQuantity"]').value,
+                    packageCondition: r.querySelector('[name="packageCondition"]').value,
+                    note: r.querySelector('[name="note"]').value
                 });
+            });
+            
+            return {
+                deliveryInfo: {
+                    supplier: document.getElementById('supplierName').value,
+                    invoice: document.getElementById('invoiceNumber').value,
+                    contract: document.getElementById('contractNumber').value,
+                    place: document.getElementById('receivingPlace').value,
+                    date: document.getElementById('receivingDate').value,
+                    time: document.getElementById('receivingTime').value,
+                    inspection: document.getElementById('inspectionResult').value,
+                    deliveryTransport: document.getElementById('deliveryTransport').value,
+                    paymentCondition: document.getElementById('paymentCondition').value,
+                    otherRequirements: document.getElementById('otherRequirements').value,
+                    preparerName: document.getElementById('preparerName').value,
+                    warehouseStaffName: document.getElementById('warehouseStaffName').value,
+                    deptStaffName: document.getElementById('deptStaffName').value
+                }, 
+                products: prods
+            };
+        }
 
-                document.getElementById('delete-security-modal').style.display='none';
-                showToast('Đã xóa toàn bộ dữ liệu hệ thống!', 'success');
+        function saveDataToFirebase() {
+            if(!db) return;
+            db.collection('deliveryRecords').doc('current').set(collectData()).catch(e => console.error(e));
+        }
+
+        function loadDataFromFirebase() {
+            if(!db) return;
+            db.collection('deliveryRecords').doc('current').onSnapshot(doc => {
+                if(doc.exists) {
+                    const d = doc.data(); 
+                    const info = d.deliveryInfo || {};
+                    
+                    document.getElementById('supplierName').value = info.supplier||'';
+                    document.getElementById('invoiceNumber').value = info.invoice||'';
+                    document.getElementById('contractNumber').value = info.contract||'';
+                    document.getElementById('receivingPlace').value = info.place||'003 Carlion 5 262/3 Lũy Bán Bích - Phường Tân Phú -Tp. Hồ Chí Minh';
+                    document.getElementById('receivingDate').value = info.date||'';
+                    document.getElementById('receivingTime').value = info.time||'';
+                    document.getElementById('inspectionResult').value = info.inspection||'';
+                    document.getElementById('deliveryTransport').value = info.deliveryTransport||'';
+                    document.getElementById('paymentCondition').value = info.paymentCondition||'';
+                    document.getElementById('otherRequirements').value = info.otherRequirements||'';
+                    document.getElementById('preparerName').value = info.preparerName||'';
+                    document.getElementById('warehouseStaffName').value = info.warehouseStaffName||'Nguyễn Minh Tâm';
+                    document.getElementById('deptStaffName').value = info.deptStaffName||'';
+
+                    const tb = document.getElementById('productTableBody'); 
+                    tb.innerHTML = ''; 
+                    productCount=0;
+                    (d.products||[]).forEach(p => addNewProductRow(p));
+                    showMessage('Đã đồng bộ dữ liệu', 'success');
+                }
+            });
+        }
+
+        function saveDataAndCreatePDF() {
+            const sName = document.getElementById('supplierName').value.trim();
+            if(sName) { 
+                saveSupplier(sName); 
+                setTimeout(loadSuppliers, 1000); 
+            }
+            saveDataToFirebase();
+            document.getElementById('exportPdfBtn').click();
+        }
+
+        function savePdfToDb(blob, name) {
+            if(!storage||!db) return;
+            storage.ref(`pdfs/${name}`).put(blob).then(s => s.ref.getDownloadURL())
+            .then(url => db.collection('savedPdfs').add({ fileName: name, downloadURL: url, createdAt: firebase.firestore.FieldValue.serverTimestamp() }))
+            .then(() => showMessage('PDF đã lưu', 'success'));
+        }
+
+        function loadSavedFiles() {
+            if(!db) return;
+            db.collection('savedPdfs').orderBy('createdAt', 'desc').limit(10).onSnapshot(sn => {
+                const l = document.getElementById('filesList'); 
+                l.innerHTML = '';
+                if(sn.empty) { 
+                    l.innerHTML = '<div class="file-item">Chưa có file</div>'; 
+                    return; 
+                }
+                sn.forEach(d => {
+                    const dd = d.data();
+                    const div = document.createElement('div'); 
+                    div.className = 'file-item';
+                    div.innerHTML = `
+                        <div class="file-info">
+                            <div class="file-name">${dd.fileName}</div>
+                            <div class="file-date">${new Date(dd.createdAt.toDate()).toLocaleString('vi-VN')}</div>
+                        </div>
+                        <button class="btn-secondary" onclick="window.open('${dd.downloadURL}')">Tải</button>`;
+                    l.appendChild(div);
+                });
+            });
+        }
+
+        // --- FIREBASE SUPPLIERS ---
+        function loadSuppliers() {
+            if (!db) return;
+            db.collection('suppliers').get().then(qs => {
+                const dl = document.getElementById('supplierList'); 
+                dl.innerHTML = '';
+                qs.forEach(doc => { 
+                    if(doc.data().name) { 
+                        const op = document.createElement('option'); 
+                        op.value = doc.data().name; 
+                        dl.appendChild(op); 
+                    }
+                });
+            });
+        }
+        
+        function saveSupplier(name) {
+            if (!db || !name) return;
+            db.collection('suppliers').where('name', '==', name).get().then(qs => {
+                if (qs.empty) db.collection('suppliers').add({ name: name, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+            });
+        }
+
+        // --- MAIN LOGIC ---
+        document.addEventListener('DOMContentLoaded', function() {
+            // Khởi tạo ngày tháng
+            const now = new Date();
+            document.getElementById('receivingDate').valueAsDate = now;
+            document.getElementById('receivingTime').value = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+
+            // Thêm sự kiện cho các nút
+            document.getElementById('addProductBtn').addEventListener('click', () => addNewProductRow());
+            document.getElementById('saveBtn').addEventListener('click', saveDataAndCreatePDF);
+            document.getElementById('resetBtn').addEventListener('click', resetForm);
+            document.getElementById('exportExcelBtn').addEventListener('click', exportToExcel);
+            document.querySelectorAll('input, select, textarea').forEach(el => el.addEventListener('change', saveDataToFirebase));
+
+            // Khởi tạo Firebase
+            const cs = document.getElementById('connectionStatus');
+            if (db) {
+                db.enableNetwork().then(() => { 
+                    cs.style.display = 'block'; 
+                    cs.className = 'alert alert-success'; 
+                    cs.innerHTML = '<span class="status-indicator status-online"></span> Kết nối OK'; 
+                }).catch(e => { 
+                    cs.style.display = 'block'; 
+                    cs.className = 'alert alert-error'; 
+                    cs.innerHTML = 'Lỗi mạng'; 
+                });
+            }
+
+            // Tải dữ liệu
+            loadSuppliers();
+            loadDataFromFirebase();
+            loadSavedFiles();
+
+            // --- PASTE MODAL LOGIC ---
+            const modal = document.getElementById('pasteModal');
+            const pasteInput = document.getElementById('pasteInput');
+            const previewContainer = document.getElementById('previewContainer');
+            const mappingTable = document.getElementById('mappingTable');
+            let parsedData = [];
+
+            document.getElementById('openPasteModalBtn').onclick = () => { 
+                modal.style.display = 'flex'; 
+                pasteInput.value = ''; 
+                previewContainer.style.display = 'none'; 
+                pasteInput.focus(); 
+            };
+            
+            document.getElementById('closePasteModal').onclick = () => { 
+                modal.style.display = 'none'; 
+            };
+            
+            window.onclick = (e) => { 
+                if (e.target == modal) modal.style.display = 'none'; 
+            };
+
+            pasteInput.addEventListener('input', function() {
+                const text = this.value.trim();
+                if (!text) { 
+                    previewContainer.style.display = 'none'; 
+                    return; 
+                }
+                const rows = text.split(/\n/);
+                parsedData = rows.map(row => row.split(/\t/));
+                if (parsedData.length > 0) {
+                    renderPreview(parsedData);
+                    previewContainer.style.display = 'block';
+                }
+            });
+
+            function renderPreview(data) {
+                mappingTable.innerHTML = '';
+                if (data.length === 0) return;
+                const colCount = data[0].length;
+                const thead = document.createElement('tr');
+                const options = [
+                    {v:'skip',t:'Bỏ qua'},
+                    {v:'productName',t:'Tên hàng'},
+                    {v:'unit',t:'Đơn vị'},
+                    {v:'lotNumber',t:'Số lô'},
+                    {v:'expiryDate',t:'Hạn dùng'},
+                    {v:'actualQuantity',t:'Số lượng'},
+                    {v:'note',t:'Ghi chú'}
+                ];
+
+                for (let i = 0; i < colCount; i++) {
+                    const th = document.createElement('th');
+                    const select = document.createElement('select');
+                    select.className = 'col-select';
+                    select.dataset.colIndex = i;
+                    options.forEach(opt => { 
+                        const option = document.createElement('option'); 
+                        option.value = opt.v; 
+                        option.text = opt.t; 
+                        select.appendChild(option); 
+                    });
+                    select.value = 'skip';
+                    th.appendChild(select);
+                    thead.appendChild(th);
+                }
+                mappingTable.appendChild(thead);
+                
+                for (let i = 0; i < Math.min(data.length, 5); i++) {
+                    const tr = document.createElement('tr');
+                    data[i].forEach(cell => { 
+                        const td = document.createElement('td'); 
+                        td.textContent = cell; 
+                        tr.appendChild(td); 
+                    });
+                    mappingTable.appendChild(tr);
+                }
+            }
+
+            document.getElementById('processPasteBtn').addEventListener('click', function() {
+                const selects = document.querySelectorAll('.col-select');
+                const mappings = [];
+                selects.forEach(sel => { 
+                    if (sel.value !== 'skip') mappings.push({ index: parseInt(sel.dataset.colIndex), field: sel.value }); 
+                });
+                
+                if (mappings.length === 0) { 
+                    alert('Vui lòng chọn ít nhất một cột dữ liệu!'); 
+                    return; 
+                }
+                
+                let importedCount = 0;
+                parsedData.forEach(row => {
+                    if (row.length === 0 || (row.length === 1 && row[0].trim() === '')) return;
+                    const productData = {};
+                    mappings.forEach(map => { 
+                        if (row[map.index] !== undefined) productData[map.field] = row[map.index].trim(); 
+                    });
+                    if (Object.keys(productData).length > 0) { 
+                        addNewProductRow(productData); 
+                        importedCount++; 
+                    }
+                });
+                
+                showMessage(`Đã dán thành công ${importedCount} dòng!`, 'success');
+                saveDataToFirebase();
+                modal.style.display = 'none';
+            });
+
+            // --- EXCEL UPLOAD ---
+            document.getElementById('dataFile').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                        const ws = wb.Sheets[wb.SheetNames[0]];
+                        const json = XLSX.utils.sheet_to_json(ws, { header: 1 });
+                        
+                        let hRowIdx = -1;
+                        for(let i=0; i<json.length; i++) {
+                            const r = json[i];
+                            if (r && (r.includes('Tên Hàng Hóa') || r.includes('Tên hàng'))) { 
+                                hRowIdx = i; 
+                                break; 
+                            }
+                        }
+                        
+                        if (hRowIdx === -1) { 
+                            showMessage('Không tìm thấy tiêu đề!', 'error'); 
+                            return; 
+                        }
+                        
+                        const map = {};
+                        json[hRowIdx].forEach((h, i) => { 
+                            if(h) map[h.toString().trim()] = i; 
+                        });
+                        
+                        document.getElementById('productTableBody').innerHTML = '';
+                        let count = 0;
+                        
+                        for(let i=hRowIdx+1; i<json.length; i++) {
+                            const r = json[i];
+                            if (r && r.length) {
+                                const d = {};
+                                Object.keys(map).forEach(k => { 
+                                    if(map[k] < r.length) d[k] = r[map[k]]; 
+                                });
+                                addNewProductRow(d); 
+                                count++;
+                            }
+                        }
+                        
+                        showMessage(`Upload ${count} dòng Excel thành công!`, 'success');
+                        saveDataToFirebase();
+                    } catch(err) { 
+                        console.error(err); 
+                        showMessage('Lỗi đọc file', 'error'); 
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            });
+
+            // --- PDF EXPORT ---
+            const pdfModal = document.getElementById('pdfOptions');
+            document.getElementById('exportPdfBtn').onclick = () => pdfModal.style.display = 'block';
+            document.getElementById('cancelExportPdf').onclick = () => pdfModal.style.display = 'none';
+            
+            document.getElementById('printBtn').onclick = () => {
+                window.print(); 
+            };
+
+            document.getElementById('confirmExportPdf').onclick = () => {
+                const ori = document.querySelector('input[name="pageOrientation"]:checked').value;
+                
+                document.querySelectorAll('.no-print').forEach(e => e.style.display = 'none');
+                toggleInputsForExport(true);
+
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF({ orientation: ori, unit: 'mm', format: 'a4' });
+                const el = document.getElementById('contentToPrint');
+                
+                html2canvas(el, { 
+                    scale: 2, 
+                    useCORS: true, 
+                    width: el.scrollWidth, 
+                    height: el.scrollHeight,
+                    windowWidth: el.scrollWidth
+                }).then(cv => {
+                    const img = cv.toDataURL('image/png');
+                    const w = doc.internal.pageSize.getWidth();
+                    const h = doc.internal.pageSize.getHeight();
+                    const imgH = cv.height * w / cv.width;
+                    let left = imgH, top = 0;
+                    doc.addImage(img, 'PNG', 0, top, w, imgH);
+                    left -= h;
+                    while (left >= 0) { 
+                        top = left - imgH; 
+                        doc.addPage(); 
+                        doc.addImage(img, 'PNG', 0, top, w, imgH); 
+                        left -= h; 
+                    }
+                    const name = `Bien-ban-${new Date().toISOString().slice(0,19).replace(/[-:]/g,'')}.pdf`;
+                    savePdfToDb(doc.output('blob'), name);
+                    doc.save(name);
+                    
+                    toggleInputsForExport(false);
+                    document.querySelectorAll('.no-print').forEach(e => e.style.display = '');
+                    pdfModal.style.display = 'none';
+                });
+            };
+        });
+
+        // Export Excel
+        function exportToExcel() {
+            const wb = XLSX.utils.book_new();
+            const rows = [
+                ['BIÊN BẢN NHẬN HÀNG'],[''],
+                ['Nhà cung cấp:', document.getElementById('supplierName').value],
+                [''],
+                ['STT','Tên hàng','ĐVT','Số lô','Hạn dùng','SL Thực tế','Thừa','Thiếu','Hỏng','Tình trạng','Ghi chú']
+            ];
+            
+            document.querySelectorAll('#productTableBody tr').forEach(r => {
+                const c = r.querySelectorAll('input, textarea, select');
+                rows.push([
+                    r.cells[0].textContent, 
+                    c[0].value, 
+                    c[1].value, 
+                    c[2].value, 
+                    c[3].value, 
+                    c[4].value, 
+                    c[5].value, 
+                    c[6].value, 
+                    c[7].value, 
+                    c[8].value, 
+                    c[9].value
+                ]);
+            });
+            
+            rows.push(['']);
+            rows.push(['BỘ PHẬN KHO/KẾ TOÁN', '', 'NGƯỜI LẬP BIÊN BẢN', '', 'PHỤ TRÁCH CHUYÊN MÔN']);
+            rows.push([
+                document.getElementById('deptStaffName').value, 
+                '', 
+                document.getElementById('preparerName').value, 
+                '', 
+                document.getElementById('warehouseStaffName').value
+            ]);
+            
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Sheet1');
+            XLSX.writeFile(wb, 'BienBanNhanHang.xlsx');
+        }
+
+        // --- HELPER: CHUYỂN INPUT THÀNH TEXT ĐỂ IN/PDF ---
+        function toggleInputsForExport(isExporting) {
+            const connStatus = document.getElementById('connectionStatus');
+            if (connStatus) {
+                connStatus.style.display = isExporting ? 'none' : 'block';
+            }
+
+            document.querySelectorAll('textarea, input:not([type="button"]):not([type="radio"]):not([type="checkbox"]):not([type="file"]), select').forEach(el => {
+                if (isExporting) {
+                    const div = document.createElement('div');
+                    div.className = 'print-substitution';
+                    div.style.width = el.style.width || '100%';
+                    div.style.textAlign = window.getComputedStyle(el).textAlign;
+                    
+                    if (el.tagName === 'SELECT') {
+                        div.textContent = el.options[el.selectedIndex]?.text || '';
+                    } else {
+                        div.textContent = el.value;
+                    }
+                    
+                    div.dataset.subFor = el.name || el.id;
+                    
+                    el.style.display = 'none';
+                    el.parentNode.insertBefore(div, el);
+                } else {
+                    const sub = el.parentNode.querySelector(`.print-substitution[data-subFor="${el.name || el.id}"]`);
+                    if (sub) sub.remove();
+                    el.style.display = '';
+                }
+            });
+        }
+
+        // --- XỬ LÝ SỰ KIỆN IN TRÌNH DUYỆT (Ctrl+P) ---
+        window.onbeforeprint = () => toggleInputsForExport(true);
+        window.onafterprint = () => toggleInputsForExport(false);
+
+        // --- NHẬP KHO FEBO - TÍCH HỢP TRỰC TIẾP ---
+        function importToFebo() {
+            // Thu thập dữ liệu từ bảng biên bản nhận hàng
+            const products = [];
+            document.querySelectorAll('#productTableBody tr').forEach(r => {
+                const productName = r.querySelector('[name="productName"]').value;
+                const unit = r.querySelector('[name="unit"]').value;
+                const lotNumber = r.querySelector('[name="lotNumber"]').value;
+                const expiryDate = r.querySelector('[name="expiryDate"]').value;
+                const actualQuantity = r.querySelector('[name="actualQuantity"]').value;
+                
+                if (productName && actualQuantity) {
+                    products.push({
+                        name: productName,
+                        unit: unit,
+                        lot: lotNumber,
+                        exp: expiryDate,
+                        qty: actualQuantity
+                    });
+                }
+            });
+            
+            if (products.length === 0) {
+                alert('Không có dữ liệu sản phẩm để nhập kho!');
+                return;
+            }
+            
+            // Lưu dữ liệu vào biến toàn cục
+            appADataForFebo = products;
+            
+            // Chuyển sang tab quản lý kho
+            switchTab('tab2', document.querySelector('.nav-tab[onclick*="tab2"]'));
+            
+            // Hiển thị thông báo
+            setTimeout(() => {
+                alert(`Đã chuẩn bị ${products.length} sản phẩm để nhập kho. Dữ liệu đã được đưa vào bảng nhập hàng loạt.`);
+            }, 500);
+        }
+
+        // --- TABS ---
+        function switchTab(tabId, element) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            document.getElementById(tabId).classList.add('active');
+            element.classList.add('active');
+            
+            if (tabId === 'tab2') {
+                loadAppB();
             }
         }
 
-        // UTILS
-        function parseDate(v) { if(!v)return ''; if(typeof v==='number') return new Date((v-25569)*86400000).toISOString().split('T')[0]; if(v.includes('/')){const p=v.split('/'); if(p.length===3) return `${p[2]}-${p[1]}-${p[0]}`;} return v; }
-        window.saveManual = async () => { const item={ productName: document.getElementById('imp-name').value.trim(), productCode: document.getElementById('imp-code').value, unit: document.getElementById('imp-unit').value, lotNumber: document.getElementById('imp-lot').value, expiryDate: document.getElementById('imp-exp').value, quantity: document.getElementById('imp-qty').value, importDate: document.getElementById('imp-date').value, createdAt: new Date().toISOString() }; if(!item.productName||!item.lotNumber||!item.quantity) return showToast('Thiếu thông tin','error'); await saveToInventory(item); showToast('OK','success'); ['imp-name','imp-code','imp-unit','imp-lot','imp-qty'].forEach(id=>document.getElementById(id).value=''); }
-        function renderStockTable() { const tb=document.getElementById('stock-body'); tb.innerHTML=''; const term=document.getElementById('search-stock').value.toLowerCase(); stockData.filter(d=>(d.productName||'').toLowerCase().includes(term)).forEach((d,i)=>{ tb.innerHTML+=`<tr><td>${i+1}</td><td>${d.productCode||''}</td><td><b>${d.productName}</b></td><td>${d.unit||''}</td><td>${d.lotNumber}</td><td>${d.expiryDate}</td><td>${d.quantity}</td><td><button class="btn btn-warning" onclick="editStock('${d.id}')">Sửa</button> <button class="btn btn-danger" onclick="if(confirm('Xóa?')) refs.items.child('${d.id}').remove()">Xóa</button></td></tr>`; }); }
-        document.getElementById('search-stock').addEventListener('input', renderStockTable);
-        window.editStock=(id)=>{ const d=stockData.find(x=>x.id===id); document.getElementById('edit-id').value=id; document.getElementById('edit-name').value=d.productName; document.getElementById('edit-code').value=d.productCode; document.getElementById('edit-unit').value=d.unit; document.getElementById('edit-lot').value=d.lotNumber; document.getElementById('edit-exp').value=d.expiryDate; document.getElementById('edit-qty').value=d.quantity; document.getElementById('edit-modal').style.display='flex'; }
-        window.saveEdit=async()=>{ const id=document.getElementById('edit-id').value; await refs.items.child(id).update({ productName:document.getElementById('edit-name').value, productCode:document.getElementById('edit-code').value, unit:document.getElementById('edit-unit').value, lotNumber:document.getElementById('edit-lot').value, expiryDate:document.getElementById('edit-exp').value, quantity:parseInt(document.getElementById('edit-qty').value) }); document.getElementById('edit-modal').style.display='none'; showToast('Đã lưu','success'); }
-        document.getElementById('master-upload').addEventListener('change', e=>{ const f=e.target.files[0]; const r=new FileReader(); r.onload=evt=>{ const wb=XLSX.read(new Uint8Array(evt.target.result),{type:'array'}); const json=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]); refs.master.push({fileName:f.name, data:json}); showToast('OK','success'); }; r.readAsArrayBuffer(f); });
-        function renderMasterFilesList(files){ document.getElementById('master-files-list').innerHTML=files.map(f=>`<div>📄 ${f.fileName} <a href="#" onclick="refs.master.child('${f.id}').remove()" style="color:red">Xóa</a></div>`).join(''); }
-        window.genReport=()=>{ const s=new Date(document.getElementById('rpt-start').value), e=new Date(document.getElementById('rpt-end').value); const r={}; stockData.forEach(i=>{ if(!r[i.productName]) r[i.productName]={name:i.productName,unit:i.unit||'',in:0,out:0,end:0}; r[i.productName].end+=parseInt(i.quantity); }); document.getElementById('rpt-body').innerHTML=Object.values(r).map(x=>`<tr ondblclick="handleProductClick('${x.name}')"><td>${x.name}</td><td>${x.unit}</td><td>-</td><td>${x.in}</td><td>${x.out}</td><td>${x.end}</td></tr>`).join(''); }
-        window.switchTab=(id,el)=>{ document.querySelectorAll('.tab-content').forEach(d=>d.style.display='none'); document.getElementById(id).style.display='block'; document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); }
-        window.toggleMode=(m)=>{ document.getElementById('mode-paste').style.display=m==='paste'?'block':'none'; document.getElementById('mode-file').style.display=m==='file'?'block':'none'; }
-        window.toggleMasterSection=()=>{ const el=document.getElementById('master-section'); el.style.display=el.style.display==='none'?'block':'none'; }
-        window.showToast=(m,t)=>{ const el=document.getElementById('toast'); el.innerText=m; el.style.background=t==='error'?'#ef4444':'#10b981'; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),3000); }
-        window.deleteAllStock=()=>{ if(confirm('Xóa hết?')) refs.items.remove(); }
+        // --- TẢI ỨNG DỤNG B VÀ TÍCH HỢP DỮ LIỆU ---
+        function loadAppB() {
+            // Tạo iframe để tải ứng dụng B
+            const appBContent = document.getElementById('appBContent');
+            appBContent.innerHTML = `
+                <iframe src="B.html" style="width: 100%; height: 800px; border: none; border-radius: 8px;"></iframe>
+            `;
+        }
     </script>
 </body>
 </html>
