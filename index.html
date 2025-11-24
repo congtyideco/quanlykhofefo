@@ -3,280 +3,254 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản Lý Kho Dược GDP - IDECO (Update Unit)</title>
+    <title>Quản Lý Kho Dược GDP - IDECO (Final Logic)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
     
     <style>
-        /* --- CSS GỐC (GIỮ NGUYÊN) --- */
-        :root { --primary: #4361ee; --secondary: #3a0ca3; --success: #4cc9f0; --danger: #f72585; --warning: #fca311; --light: #f8f9fa; --dark: #212529; --gray: #6c757d; }
+        /* CSS CHUẨN - KHÔNG ĐỔI */
+        :root { --primary: #2563eb; --secondary: #1e40af; --success: #10b981; --danger: #ef4444; --warning: #f59e0b; --light: #f3f4f6; --dark: #1e293b; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: var(--dark); background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); min-height: 100vh; padding: 20px; }
-        .container { max-width: 1280px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1); overflow: hidden; }
-        header { background: linear-gradient(to right, var(--primary), var(--secondary)); color: white; padding: 20px; text-align: center; position: relative; }
-        h1 { font-size: 2.2rem; margin-bottom: 10px; }
-        .subtitle { font-size: 1.1rem; opacity: 0.9; }
-        .nav-tabs { display: flex; justify-content: center; background: #f0f0f0; padding: 10px 0; margin-bottom: 20px; }
-        .nav-tab { padding: 10px 20px; cursor: pointer; background: #e0e0e0; margin: 0 5px; border-radius: 5px 5px 0 0; transition: background 0.3s; font-weight: bold; }
-        .nav-tab.active { background: white; color: var(--primary); border-bottom: 3px solid var(--primary); }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.5; color: var(--dark); background: #f1f5f9; padding: 20px; }
+        .container { max-width: 1280px; margin: 0 auto; background: white; border-radius: 10px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); overflow: hidden; min-height: 90vh; }
+        
+        header { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
+        h1 { font-size: 1.5rem; margin: 0; font-weight: 700; }
+        
+        .nav-tabs { display: flex; background: #e2e8f0; padding: 10px 10px 0; }
+        .nav-tab { padding: 10px 20px; cursor: pointer; background: #cbd5e1; margin-right: 4px; border-radius: 6px 6px 0 0; font-weight: 600; color: #475569; transition: 0.2s; }
+        .nav-tab.active { background: white; color: var(--primary); border-top: 3px solid var(--primary); }
         .tab-content { display: none; padding: 20px; }
         .tab-content.active { display: block; }
+
+        .grid-layout { display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; }
+        @media(max-width:900px) { .grid-layout { grid-template-columns: 1fr; } }
         
-        .btn { display: inline-block; padding: 10px 16px; margin: 6px 4px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.3s; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); font-size: 0.9rem; }
-        .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15); }
-        .btn-success { background: #10b981; } .btn-danger { background: #ef4444; } .btn-warning { background: #f59e0b; }
-        input, textarea, select { width: 100%; padding: 12px; margin: 8px 0; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; transition: border-color 0.3s; }
-        input:focus { border-color: var(--primary); outline: none; }
-
-        .toast { position: fixed; bottom: 20px; right: 20px; padding: 15px 25px; background: var(--dark); color: white; border-radius: 8px; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2); transform: translateY(100px); opacity: 0; transition: all 0.4s; z-index: 2000; }
-        .toast.show { transform: translateY(0); opacity: 1; }
-        .toast.success { background: #10b981; } .toast.error { background: #ef4444; }
-
-        /* Giao diện list & item gốc */
-        .documents-list, .export-records-list { margin-top: 15px; max-height: 400px; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; padding: 10px; }
-        .document-item, .export-record-item { padding: 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
-        .document-item:hover, .export-record-item:hover { background-color: #f0f5ff; }
-        .document-item.expired .document-date { color: var(--danger); font-weight: bold; }
-        .document-item.warning .document-date { color: var(--warning); font-weight: bold; }
-        .empty-list { text-align: center; padding: 20px; color: var(--gray); font-style: italic; }
-
-        /* Modals */
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); align-items: center; justify-content: center; }
-        .modal-content { background-color: #fefefe; padding: 20px; border-radius: 10px; width: 90%; max-width: 400px; text-align: center; }
-        .modal-buttons { display: flex; justify-content: center; gap: 10px; margin-top: 15px; }
-
-        /* --- CSS MỚI CHO PHẦN NHẬP KHO CẢI TIẾN --- */
-        .import-layout { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; }
-        @media (max-width: 900px) { .import-layout { grid-template-columns: 1fr; } }
-        .card-box { background: white; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb; }
-        .section-title { font-size: 1.3rem; color: var(--primary); margin-bottom: 15px; border-bottom: 2px solid #f3f4f6; padding-bottom: 10px; font-weight: bold; }
+        .card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); height: 100%; }
+        .card-header { font-size: 1.1rem; font-weight: 700; color: var(--primary); margin-bottom: 15px; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; }
         
-        .autocomplete { position: relative; }
-        .autocomplete-items { position: absolute; border: 1px solid #d4d4d4; border-top: none; z-index: 99; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; background-color: #fff; }
-        .autocomplete-items div { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; }
-        .autocomplete-items div:hover { background-color: #e9e9e9; }
+        input, select, textarea { width: 100%; padding: 8px 12px; margin: 5px 0 15px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
+        input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+        label { font-size: 0.85rem; font-weight: 600; color: #475569; margin-bottom: 2px; display: block; }
         
-        .paste-area { width: 100%; height: 100px; font-family: monospace; font-size: 12px; border: 2px dashed #ccc; background: #f9fafb; white-space: pre; }
-        .preview-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 10px; }
-        .preview-table th, .preview-table td { border: 1px solid #ddd; padding: 6px; text-align: left; }
-        .preview-table th { background: #e5e7eb; }
-        .preview-table input { width: 100%; border: 1px solid transparent; background: transparent; }
+        .btn { padding: 8px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; color: white; transition: 0.2s; font-size: 0.9rem; }
+        .btn:hover { opacity: 0.9; }
+        .btn-success { background: var(--success); } .btn-primary { background: var(--primary); } .btn-danger { background: var(--danger); } .btn-warning { background: var(--warning); }
+        
+        /* AUTOCOMPLETE STYLE */
+        .autocomplete-wrapper { position: relative; }
+        .autocomplete-items { position: absolute; top: 100%; left: 0; right: 0; z-index: 100; background: white; border: 1px solid #cbd5e1; max-height: 200px; overflow-y: auto; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-radius: 0 0 6px 6px; }
+        .autocomplete-item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
+        .autocomplete-item:hover { background: #f1f5f9; }
+        .autocomplete-item strong { color: var(--primary); }
+
+        /* TABLE STYLE */
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 10px; }
+        th { background: #f8fafc; text-align: left; padding: 10px; font-weight: 700; border: 1px solid #e2e8f0; color: #334155; }
+        td { padding: 8px; border: 1px solid #e2e8f0; vertical-align: middle; }
+        tr:hover { background: #f8fafc; }
+        .preview-table input { margin: 0; border: 1px solid transparent; background: transparent; width: 100%; }
         .preview-table input:focus { border-color: var(--primary); background: white; }
 
-        /* App Content Layout (Gốc) */
-        .app-content { display: flex; flex-wrap: wrap; gap: 20px; }
-        .camera-section, .list-section { flex: 1; min-width: 300px; background: var(--light); border-radius: 10px; padding: 20px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05); }
-        .lot-suggestion { background: white; padding: 10px; margin-top: 5px; border: 1px solid #ddd; border-radius: 5px; cursor: pointer; }
-        .lot-suggestion:hover { background: #f0f5ff; }
+        .paste-area { font-family: monospace; height: 100px; border: 2px dashed #cbd5e1; background: #f8fafc; resize: vertical; }
+        .toast { position: fixed; bottom: 20px; right: 20px; background: #1e293b; color: white; padding: 12px 24px; border-radius: 8px; opacity: 0; transition: 0.3s; z-index: 2000; }
+        .toast.show { opacity: 1; transform: translateY(-10px); }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
             <h1>QUẢN LÝ KHO DƯỢC GDP - IDECO</h1>
-            <p class="subtitle">Hệ thống Nhập - Xuất - Tồn & FEFO</p>
-            <button onclick="toggleMasterData()" class="btn btn-warning" style="position: absolute; right: 20px; top: 20px; font-size: 0.8rem;">
-                 Quản lý Dữ liệu Gốc
+            <button class="btn btn-warning" onclick="document.getElementById('master-data-box').style.display='block'">
+                📂 Dữ Liệu Gốc
             </button>
         </header>
 
         <div class="nav-tabs">
-            <div class="nav-tab active" data-tab="tab1">1. NHẬP KHO & TỒN KHO</div>
-            <div class="nav-tab" data-tab="tab2" id="tab2-btn">2. XUẤT KHO & BÁO CÁO</div>
+            <div class="nav-tab active" onclick="switchTab('tab1', this)">1. NHẬP KHO & TỒN KHO</div>
+            <div class="nav-tab" onclick="switchTab('tab2', this)" id="btn-tab2">2. XUẤT KHO & BÁO CÁO</div>
         </div>
 
         <div id="tab1" class="tab-content active">
             
-            <div id="master-data-section" style="display:none; background: #fffbeb; padding: 15px; margin-bottom: 20px; border-radius: 8px; border: 1px solid #fcd34d;">
-                <h3 style="color: #b45309; margin-bottom: 10px;">Quản lý Danh Mục Gốc (Excel)</h3>
-                <p style="font-size: 0.9rem;">Dùng để gợi ý Mã SP khi nhập tên. Tự động bỏ qua "TH_" khi tìm kiếm.</p>
-                <input type="file" id="master-file-upload" accept=".xlsx, .xls">
-                <div id="master-file-list" style="margin-top: 5px;"></div>
+            <div id="master-data-box" style="display:none; background:#fffbeb; padding:15px; margin-bottom:20px; border-radius:8px; border:1px solid #fbbf24;">
+                <h3 style="margin-top:0; color:#92400e">Cập nhật Danh Mục Gốc (Mã - Tên)</h3>
+                <p style="font-size:0.9rem">Upload file Excel chứa cột "Mã SP" và "Tên Hàng Hóa". Hệ thống sẽ dùng để gợi ý và tự điền mã.</p>
+                <input type="file" id="master-file" accept=".xlsx, .xls">
+                <div id="master-status" style="font-size:0.9rem; margin-top:5px; color:#059669"></div>
             </div>
 
-            <div class="import-layout">
-                <div class="card-box">
-                    <div class="section-title">A. Nhập Kho Thủ Công</div>
-                    <div class="autocomplete">
-                        <label>Tên Hàng Hóa (*)</label>
-                        <input type="text" id="imp-name" placeholder="Gõ tên thuốc (VD: Panadol)..." autocomplete="off">
-                        <div id="imp-name-list" class="autocomplete-items"></div>
+            <div class="grid-layout">
+                <div class="card">
+                    <div class="card-header">A. Nhập Kho Thủ Công</div>
+                    <label>Tên Hàng Hóa (*)</label>
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="imp-name" placeholder="Gõ tên thuốc (bỏ qua TH_)..." autocomplete="off">
+                        <div id="imp-suggest" class="autocomplete-items"></div>
                     </div>
-                    <label>Mã Sản Phẩm (Tự động)</label>
-                    <input type="text" id="imp-code" placeholder="Mã sẽ tự hiện..." readonly style="background-color: #f3f4f6;">
-                    
-                    <div style="display: flex; gap: 10px;">
-                        <div style="flex:1"><label>Đơn Vị</label><input type="text" id="imp-unit" placeholder="Hộp/Viên..."></div>
+
+                    <div style="display:flex; gap:10px">
+                        <div style="flex:1">
+                            <label>Mã SP (Tự động)</label>
+                            <input type="text" id="imp-code" placeholder="Tự load..." readonly style="background:#f1f5f9">
+                        </div>
+                        <div style="flex:1">
+                            <label>Đơn Vị (*)</label>
+                            <input type="text" id="imp-unit" placeholder="Hộp/Viên...">
+                        </div>
+                    </div>
+
+                    <div style="display:flex; gap:10px">
                         <div style="flex:1"><label>Số Lô (*)</label><input type="text" id="imp-lot"></div>
+                        <div style="flex:1"><label>Hạn Dùng (*)</label><input type="date" id="imp-exp"></div>
                     </div>
                     
-                    <div style="display: flex; gap: 10px;">
-                        <div style="flex:1"><label>Hạn Dùng (*)</label><input type="date" id="imp-expiry"></div>
-                        <div style="flex:1"><label>Số Lượng (*)</label><input type="number" id="imp-qty" min="1"></div>
-                    </div>
-                    
-                    <div style="display: flex; gap: 10px;">
+                    <div style="display:flex; gap:10px">
+                        <div style="flex:1"><label>Số Lượng (*)</label><input type="number" id="imp-qty"></div>
                         <div style="flex:1"><label>Ngày Nhập</label><input type="date" id="imp-date"></div>
-                        <div style="flex:1"><label>Mã Phiếu</label><input type="text" id="imp-slip"></div>
                     </div>
                     
-                    <button id="btn-manual-import" class="btn btn-success" style="width: 100%;">LƯU NHẬP KHO</button>
+                    <button class="btn btn-success" style="width:100%" onclick="saveManual()">LƯU NHẬP KHO</button>
                 </div>
 
-                <div class="card-box">
-                    <div class="section-title">B. Nhập Hàng Loạt (Excel/Paste)</div>
-                    <div style="margin-bottom: 10px;">
-                        <button class="btn btn-sm btn-outline" onclick="showImportMode('paste')">📋 Dán (Paste)</button>
-                        <button class="btn btn-sm btn-outline" onclick="showImportMode('file')">📂 Upload File</button>
+                <div class="card">
+                    <div class="card-header">
+                        B. Nhập Hàng Loạt
+                        <div style="float:right">
+                            <button class="btn btn-primary" style="padding:4px 8px; font-size:0.8rem" onclick="toggleMode('paste')">Paste</button>
+                            <button class="btn btn-warning" style="padding:4px 8px; font-size:0.8rem" onclick="toggleMode('file')">Excel</button>
+                        </div>
                     </div>
 
                     <div id="mode-paste">
-                        <p style="font-size: 0.8rem; color: #666;">
-                            Copy từ Excel (bỏ tiêu đề) cột:<br>
+                        <p style="font-size:0.85rem; color:#64748b; margin-bottom:5px">
+                            Copy từ Excel (Không lấy tiêu đề):<br>
                             <b>STT | Tên Hàng Hóa | Đơn Vị | Số Lô | Hạn Dùng | Số Lượng</b>
                         </p>
-                        <textarea id="paste-input" class="paste-area" placeholder="Click vào đây và ấn Ctrl+V..."></textarea>
-                        <button id="btn-process-paste" class="btn btn-primary" style="width: 100%; margin-top: 5px;">Soi Chiếu</button>
+                        <textarea id="paste-area" class="paste-area" placeholder="Click vào đây và ấn Ctrl+V..."></textarea>
+                        <button class="btn btn-primary" style="width:100%; margin-top:5px" onclick="processPaste()">Soi Chiếu Dữ Liệu</button>
                     </div>
 
-                    <div id="mode-file" style="display: none;">
-                        <p style="font-size: 0.8rem;">File Excel cột: STT, Tên Hàng Hóa, Đơn Vị, Số Lô, Hạn Dùng, Số Lượng</p>
-                        <input type="file" id="import-file-input" accept=".xlsx, .xls">
+                    <div id="mode-file" style="display:none">
+                        <p style="font-size:0.85rem">File Excel cột: STT, Tên, Đơn Vị, Lô, Hạn, SL</p>
+                        <input type="file" id="import-file" accept=".xlsx, .xls">
                     </div>
 
-                    <div id="preview-section" style="display: none; margin-top: 15px;">
-                        <div style="background: #ecfdf5; padding: 5px; font-size: 0.9rem; color: #065f46;">
-                            <strong>Kiểm tra:</strong> Có thể sửa Mã/Lô trực tiếp.
+                    <div id="preview-box" style="display:none; margin-top:15px">
+                        <div style="background:#ecfdf5; padding:5px; font-size:0.9rem; color:#065f46; margin-bottom:5px">
+                            <strong>Kiểm tra:</strong> Mã SP tự động điền từ tên.
                         </div>
-                        <div style="max-height: 250px; overflow-y: auto;">
+                        <div style="overflow-y:auto; max-height:250px">
                             <table class="preview-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width:30px">STT</th>
-                                        <th>Mã SP</th>
-                                        <th>Tên</th>
-                                        <th>Đơn Vị</th>
-                                        <th>Lô</th>
-                                        <th>Hạn</th>
-                                        <th style="width:50px">SL</th>
-                                        <th>Xóa</th>
-                                    </tr>
-                                </thead>
+                                <thead><tr><th>Mã SP</th><th>Tên</th><th>Đơn Vị</th><th>Lô</th><th>Hạn</th><th>SL</th><th>Xóa</th></tr></thead>
                                 <tbody id="preview-body"></tbody>
                             </table>
                         </div>
-                        <div style="display:flex; gap:10px; margin-top:10px;">
-                            <button id="btn-sync-data" class="btn btn-success" style="flex:1">ĐỒNG BỘ</button>
-                            <button onclick="cancelImport()" class="btn btn-danger">Hủy</button>
-                        </div>
+                        <button class="btn btn-success" style="width:100%; margin-top:10px" onclick="syncData()">ĐỒNG BỘ VÀO KHO</button>
                     </div>
                 </div>
             </div>
 
-            <div class="list-section" style="margin-top: 20px; width: 100%;">
-                <h2 class="section-title">Danh Sách Sản Phẩm Trong Kho</h2>
-                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                    <input type="text" id="search-input" placeholder="Tìm kiếm theo tên, số lô...">
-                    <button id="search-btn" class="btn">🔍</button>
+            <div class="card" style="margin-top:20px; height:auto">
+                <div class="card-header">
+                    Danh Sách Tồn Kho
+                    <button class="btn btn-danger" style="float:right; font-size:0.8rem; padding:4px 10px" onclick="deleteAll()">Xóa Tất Cả</button>
                 </div>
-                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                    <input type="date" id="filter-date">
-                    <select id="sort-by">
-                        <option value="newest">Mới nhất</option>
-                        <option value="oldest">Cũ nhất</option>
-                        <option value="name">Theo tên</option>
-                        <option value="expiry">Hạn dùng</option>
+                <div style="display:flex; gap:10px; margin-bottom:10px">
+                    <input type="text" id="search-stock" placeholder="Tìm kiếm tên, mã, lô..." style="flex:2">
+                    <input type="date" id="filter-date" style="flex:1">
+                    <select id="sort-stock" style="flex:1">
+                        <option value="newest">Mới nhập</option>
+                        <option value="exp">Hạn dùng</option>
                     </select>
                 </div>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                    <strong>Danh sách chi tiết:</strong>
-                    <button id="delete-all-btn" class="btn btn-danger">Xóa tất cả dữ liệu</button>
-                </div>
-                <div class="documents-list" id="documents-list">
-                    <div class="empty-list">Đang tải dữ liệu...</div>
+                <div style="overflow-x:auto">
+                    <table id="stock-table">
+                        <thead>
+                            <tr>
+                                <th style="width:40px">STT</th>
+                                <th>Mã SP</th>
+                                <th>Tên Hàng Hóa</th>
+                                <th>Đơn Vị</th>
+                                <th>Số Lô</th>
+                                <th>Hạn Dùng</th>
+                                <th>Số Lượng</th>
+                                <th style="width:110px">Thao Tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stock-body"></tbody>
+                    </table>
                 </div>
             </div>
         </div>
 
         <div id="tab2" class="tab-content">
-            <div class="app-content">
-                <div class="camera-section">
-                    <h2 class="section-title">Phiếu Xuất Kho (FEFO)</h2>
-                    <div class="autocomplete">
-                        <input type="text" id="export-product-name-input" placeholder="Nhập tên sản phẩm để xuất kho..." autocomplete="off">
-                        <div class="autocomplete-items" id="export-product-autocomplete"></div>
+            <div class="grid-layout">
+                <div class="card">
+                    <div class="card-header">Phiếu Xuất Kho (FEFO)</div>
+                    <label>Tìm thuốc cần xuất:</label>
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="exp-name" placeholder="Gõ tên thuốc..." autocomplete="off">
+                        <div id="exp-suggest" class="autocomplete-items"></div>
                     </div>
-                    <div id="lot-suggestions-container"></div>
-                    <input type="number" id="export-quantity" placeholder="Số lượng xuất" min="1" disabled>
-                    <input type="text" id="export-destination" placeholder="Xuất cho... (Tùy chọn)">
-                    <input type="date" id="export-date" placeholder="Ngày xuất">
-                    <button id="confirm-export-btn" class="btn btn-success" disabled>Xác nhận Xuất Kho</button>
-
-                    <div class="excel-export-section" style="margin-top: 20px; background: #f8f9fa; padding: 15px; border-radius: 8px;">
-                        <h3 style="margin-top:0">📤 Xuất Kho Từ File Excel</h3>
-                        <label for="export-excel-file" class="btn btn-primary" style="width:100%; margin:0 0 5px 0">Chọn File Excel Xuất Kho</label>
-                        <input type="file" id="export-excel-file" accept=".xlsx, .xls" style="display: none;">
-                        <div id="export-excel-file-name" style="text-align:center; font-size:0.9rem; color:#666;">Chưa chọn file</div>
-                        <div style="display:flex; gap:5px; margin-top:5px;">
-                            <button id="preview-export-btn" class="btn btn-warning" style="flex:1">Xem Trước</button>
-                            <button id="process-export-btn" class="btn btn-success" style="flex:1" disabled>Xử Lý</button>
+                    
+                    <div id="lot-list" style="margin-top:10px; min-height:50px"></div>
+                    
+                    <div style="border-top:1px dashed #cbd5e1; margin-top:15px; padding-top:10px">
+                        <div style="display:flex; gap:10px">
+                            <div style="flex:1"><label>Số Lượng Xuất</label><input type="number" id="exp-qty" disabled></div>
+                            <div style="flex:1"><label>Đơn Vị</label><input type="text" id="exp-unit" readonly style="background:#f1f5f9"></div>
                         </div>
-                        <div id="export-preview-container" style="display:none; margin-top:10px;">
-                            <div style="max-height: 200px; overflow-y: auto;">
-                                <table class="preview-table"><tbody id="export-preview-body"></tbody></table>
-                            </div>
-                        </div>
+                        <label>Nơi Nhận</label><input type="text" id="exp-dest">
+                        <label>Ngày Xuất</label><input type="date" id="exp-date">
+                        <button class="btn btn-warning" id="btn-export" style="width:100%" disabled onclick="confirmExport()">XÁC NHẬN XUẤT</button>
                     </div>
                 </div>
 
-                <div class="list-section">
-                    <h2 class="section-title">Danh Sách Phiếu Xuất Kho</h2>
-                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                        <button id="export-slip-btn" class="btn btn-success" style="flex: 1;">Xuất Excel DS</button>
-                        <button id="refresh-export-form-btn" class="btn" style="flex: 1; background-color: #6c757d;">🔄 Làm mới</button>
-                    </div>
-                    <div class="search-box">
-                        <input type="text" id="export-record-search-input" placeholder="Tìm phiếu xuất...">
-                    </div>
-                    <div class="export-records-list" id="export-records-list">
-                        <div class="empty-list">Chưa có phiếu xuất kho nào.</div>
-                    </div>
+                <div class="card">
+                    <div class="card-header">Lịch Sử Xuất Kho</div>
+                    <button class="btn btn-success" style="font-size:0.8rem; margin-bottom:10px" onclick="exportHistoryExcel()">Xuất Excel Phiếu</button>
+                    <div id="export-list" style="overflow-y:auto; max-height:450px"></div>
                 </div>
             </div>
 
-            <div class="app-content">
-                <div class="list-section" style="flex-basis: 100%;">
-                    <h2 class="section-title">Báo Cáo Xuất Nhập Tồn</h2>
-                    <div class="export-filters">
-                        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                            <input type="date" id="report-start-date" title="Từ ngày">
-                            <input type="date" id="report-end-date" title="Đến ngày">
-                        </div>
-                        <div class="autocomplete">
-                           <input type="text" id="report-product-name" placeholder="Gõ để tìm và lọc tên thuốc...">
-                           <div class="autocomplete-items" id="report-product-autocomplete"></div>
-                        </div>
-                        <button id="generate-report-btn" class="btn btn-primary" style="width: 100%; margin-top: 10px;">Tạo Báo Cáo</button>
+            <div class="card" style="margin-top:20px; height:auto">
+                <div class="card-header">Báo Cáo Tổng Hợp</div>
+                <div style="display:flex; gap:10px; align-items:flex-end">
+                    <div style="flex:1"><label>Từ ngày</label><input type="date" id="rpt-start"></div>
+                    <div style="flex:1"><label>Đến ngày</label><input type="date" id="rpt-end"></div>
+                    <div style="flex:2">
+                        <label>Lọc tên thuốc</label>
+                        <input type="text" id="rpt-filter" placeholder="Nhập tên thuốc...">
                     </div>
-                    <button id="export-report-excel-btn" class="btn btn-success" style="width: 100%; margin: 0 0 15px 0;">Xuất Báo Cáo Excel</button>
-                    <div class="documents-list" id="report-list">
-                        <div class="empty-list">Chưa có dữ liệu.</div>
+                    <div style="padding-bottom:15px">
+                        <button class="btn btn-primary" onclick="genReport()">Xem</button>
+                        <button class="btn btn-success" onclick="exportReportExcel()">Excel</button>
                     </div>
                 </div>
+                <table id="rpt-table" style="margin-top:10px">
+                    <thead><tr><th>Tên Hàng Hóa</th><th>Đơn Vị</th><th>Tồn Đầu</th><th>Nhập</th><th>Xuất</th><th>Tồn Cuối</th></tr></thead>
+                    <tbody id="rpt-body"></tbody>
+                </table>
             </div>
         </div>
     </div>
 
-    <div id="delete-all-modal" class="modal">
+    <div id="edit-modal" class="modal">
         <div class="modal-content">
-            <h3>Xác nhận xóa tất cả</h3>
-            <p>Bạn có chắc chắn muốn xóa <strong>TOÀN BỘ</strong> dữ liệu kho?</p>
-            <input type="password" id="delete-all-password" style="width:100%; padding:10px;" placeholder="Nhập mật khẩu xác nhận">
+            <h3>Sửa Thông Tin</h3>
+            <input type="hidden" id="edit-id">
+            <input type="text" id="edit-name" placeholder="Tên">
+            <input type="text" id="edit-code" placeholder="Mã">
+            <input type="text" id="edit-unit" placeholder="Đơn vị">
+            <input type="text" id="edit-lot" placeholder="Lô">
+            <input type="date" id="edit-exp">
+            <input type="number" id="edit-qty">
             <div class="modal-buttons">
-                <button id="confirm-delete-all" class="btn btn-danger">Xóa Hết</button>
-                <button id="cancel-delete-all" class="btn">Hủy</button>
+                <button class="btn btn-success" onclick="saveEdit()">Lưu</button>
+                <button class="btn btn-danger" onclick="document.getElementById('edit-modal').style.display='none'">Hủy</button>
             </div>
         </div>
     </div>
@@ -284,7 +258,7 @@
     <div class="toast" id="toast">Thông báo</div>
 
     <script>
-        // --- FIREBASE SETUP ---
+        // FIREBASE INIT
         const firebaseConfig = {
             apiKey: "AIzaSyB54vAqmLmkMPq-L0X69oRS2DdVxxtrLPc",
             authDomain: "quanlykho-5c64f.firebaseapp.com",
@@ -295,466 +269,444 @@
         };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        const documentsRef = db.ref('pharmaceuticals');
-        const excelFilesRef = db.ref('excelFiles'); 
-        const exportsRef = db.ref('exports');
+        const refs = {
+            items: db.ref('pharmaceuticals'),
+            master: db.ref('excelFiles'),
+            exports: db.ref('exports')
+        };
 
-        // --- GLOBAL VARS ---
-        let allDocuments = []; 
-        let allExports = [];   
-        let masterData = [];   
-        let previewData = []; 
-        
+        // VARIABLES
+        let stockData = [], exportData = [], masterData = [], previewData = [];
         let currentExportLot = null;
-        let currentExportSessionRecords = []; 
-        let exportExcelData = [];
 
-        // --- INIT ---
+        // INIT DATE
         document.getElementById('imp-date').valueAsDate = new Date();
-        document.getElementById('export-date').valueAsDate = new Date();
+        document.getElementById('exp-date').valueAsDate = new Date();
 
-        // LOAD DATA
-        documentsRef.on('value', snap => {
-            const data = snap.val();
-            allDocuments = data ? Object.keys(data).map(k => ({ id: k, ...data[k] })) : [];
-            updateDocumentsList(allDocuments); 
-            updateMasterDataFromStock();
-        });
-        exportsRef.on('value', snap => {
-            const data = snap.val();
-            allExports = data ? Object.keys(data).map(k => ({ id: k, ...data[k] })) : [];
-        });
-        excelFilesRef.on('value', snap => {
-            const data = snap.val();
-            const files = data ? Object.keys(data).map(k => ({ id: k, ...data[k] })) : [];
-            processMasterData(files);
-            renderMasterFiles(files);
-        });
-
-        // --- 1. DANH SÁCH TỒN KHO & CHỨC NĂNG SỬA/XÓA (KHÔI PHỤC TỪ GỐC) ---
-        function updateDocumentsList(documents) {
-            const listContainer = document.getElementById('documents-list');
-            if (documents.length === 0) { 
-                listContainer.innerHTML = '<div class="empty-list">Kho trống.</div>'; return; 
-            }
-            
-            let filtered = [...documents];
-            const term = document.getElementById('search-input').value.toLowerCase();
-            if(term) filtered = filtered.filter(d => (d.productName||'').toLowerCase().includes(term) || (d.lotNumber||'').toLowerCase().includes(term));
-            
-            const dateFilter = document.getElementById('filter-date').value;
-            if(dateFilter) filtered = filtered.filter(d => new Date(d.createdAt).toISOString().split('T')[0] === dateFilter);
-            
-            const sortVal = document.getElementById('sort-by').value;
-            if(sortVal === 'newest') filtered.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
-            else if(sortVal === 'oldest') filtered.sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
-            else if(sortVal === 'name') filtered.sort((a,b)=>(a.productName||'').localeCompare(b.productName||''));
-            else if(sortVal === 'expiry') filtered.sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate));
-
-            listContainer.innerHTML = '';
-            filtered.forEach(doc => {
-                const el = document.createElement('div');
-                el.className = 'document-item';
-                el.id = `doc-${doc.id}`;
-                
-                const exp = new Date(doc.expiryDate);
-                const diff = Math.ceil((exp - new Date()) / (86400000));
-                if(diff<=0) el.classList.add('expired');
-                else if(diff<=60) el.classList.add('warning');
-
-                el.innerHTML = `
-                    <div style="flex:1">
-                        <div style="font-weight:bold; color:var(--primary)">${doc.productName} ${doc.unit ? `(${doc.unit})` : ''}</div>
-                        <div style="font-size:0.85rem; color:#666">
-                            Lô: ${doc.lotNumber} | Hạn: ${new Date(doc.expiryDate).toLocaleDateString('vi-VN')} | 
-                            SL: <b>${doc.quantity}</b>
-                        </div>
-                    </div>
-                    <div style="display:flex; gap:5px;">
-                        <button class="btn btn-warning btn-sm" onclick="enableEditMode('${doc.id}')" style="margin:0; padding:5px 10px;">Sửa</button>
-                        <button class="btn btn-danger btn-sm" onclick="deleteDocument('${doc.id}')" style="margin:0; padding:5px 10px;">Xóa</button>
-                    </div>
-                `;
-                listContainer.appendChild(el);
-            });
-        }
-
-        // Listener lọc
-        document.getElementById('search-input').addEventListener('input', () => updateDocumentsList(allDocuments));
-        document.getElementById('filter-date').addEventListener('change', () => updateDocumentsList(allDocuments));
-        document.getElementById('sort-by').addEventListener('change', () => updateDocumentsList(allDocuments));
-
-        // Edit
-        window.enableEditMode = function(id) {
-            const doc = allDocuments.find(d => d.id === id);
-            const el = document.getElementById(`doc-${id}`);
-            el.innerHTML = `
-                <div style="flex:1">
-                    <input id="edit-name-${id}" value="${doc.productName}" style="margin:2px 0; padding:5px;">
-                    <div style="display:flex; gap:5px;">
-                        <input id="edit-unit-${id}" value="${doc.unit||''}" placeholder="Đơn vị" style="width:60px; padding:5px;">
-                        <input id="edit-lot-${id}" value="${doc.lotNumber}" placeholder="Lô" style="flex:1; padding:5px;">
-                        <input type="date" id="edit-exp-${id}" value="${doc.expiryDate}" style="flex:1; padding:5px;">
-                    </div>
-                    <div style="display:flex; gap:5px;">
-                        <input type="number" id="edit-qty-${id}" value="${doc.quantity}" placeholder="SL" style="flex:1; padding:5px;">
-                    </div>
-                </div>
-                <div>
-                    <button class="btn btn-success btn-sm" onclick="saveChanges('${id}')" style="margin:0 0 5px 0; width:100%;">Lưu</button>
-                    <button class="btn btn-sm" onclick="updateDocumentsList(allDocuments)" style="margin:0; width:100%;">Hủy</button>
-                </div>
-            `;
-        }
-        window.saveChanges = async function(id) {
-            const updated = {
-                productName: document.getElementById(`edit-name-${id}`).value,
-                unit: document.getElementById(`edit-unit-${id}`).value,
-                lotNumber: document.getElementById(`edit-lot-${id}`).value,
-                expiryDate: document.getElementById(`edit-exp-${id}`).value,
-                quantity: document.getElementById(`edit-qty-${id}`).value
-            };
-            if(!updated.productName || !updated.expiryDate) { showToast('Thiếu thông tin!', 'error'); return; }
-            await documentsRef.child(id).update(updated);
-            showToast('Đã cập nhật!', 'success');
-        }
-
-        // Delete One
-        window.deleteDocument = function(id) {
-            if(confirm('Xóa sản phẩm này?')) {
-                const p = prompt('Nhập mật khẩu xóa (ideco2025):');
-                if(p === 'ideco2025') { documentsRef.child(id).remove(); showToast('Đã xóa!', 'success'); } 
-                else { showToast('Sai mật khẩu', 'error'); }
-            }
-        }
-
-        // Delete All
-        document.getElementById('delete-all-btn').addEventListener('click', () => {
-            document.getElementById('delete-all-modal').style.display = 'flex';
-            document.getElementById('delete-all-password').value = '';
-        });
-        document.getElementById('cancel-delete-all').addEventListener('click', () => {
-            document.getElementById('delete-all-modal').style.display = 'none';
-        });
-        document.getElementById('confirm-delete-all').addEventListener('click', async () => {
-            const pass = document.getElementById('delete-all-password').value;
-            if(pass === 'ideco2025') {
-                if(confirm('CẢNH BÁO: Bạn chắc chắn muốn xóa sạch dữ liệu kho?')) {
-                    await documentsRef.remove();
-                    showToast('Đã xóa toàn bộ kho!', 'success');
-                    document.getElementById('delete-all-modal').style.display = 'none';
+        // 1. DATA LOADING
+        refs.items.on('value', s => {
+            const d = s.val();
+            stockData = d ? Object.keys(d).map(k => ({id:k, ...d[k]})) : [];
+            renderStock();
+            // Auto learn new codes/units from stock if not in master
+            stockData.forEach(item => {
+                if(item.productName) {
+                    const k = cleanStr(item.productName);
+                    if(!masterData.find(m => m.searchKey === k)) {
+                        masterData.push({ name: item.productName, code: item.productCode||'', searchKey: k });
+                    }
                 }
-            } else { showToast('Mật khẩu sai!', 'error'); }
+            });
         });
 
-        // --- 2. NHẬP KHO THÔNG MINH (ĐÃ CẬP NHẬT CỘT ĐƠN VỊ) ---
-        function cleanSearchStr(str) { return str ? str.toLowerCase().replace(/^th_|th\s+|thuốc\s+/g, '').trim() : ''; }
-        function processMasterData(files) {
+        refs.exports.on('value', s => {
+            const d = s.val();
+            exportData = d ? Object.keys(d).map(k => ({id:k, ...d[k]})) : [];
+            renderExportHistory();
+        });
+
+        refs.master.on('value', s => {
+            const d = s.val();
+            const files = d ? Object.values(d) : [];
+            processMasterFiles(files);
+        });
+
+        // 2. MASTER DATA & SMART SEARCH LOGIC (CORE FIX)
+        function cleanStr(str) {
+            if(!str) return '';
+            // Remove TH_, TH , Thuốc... to create search key
+            return str.toLowerCase().replace(/^th_|th\s+|thuốc\s+/g, '').trim();
+        }
+
+        function processMasterFiles(files) {
             const map = new Map();
             files.forEach(f => {
-                if(f.data) f.data.forEach(row => {
-                    const name = row['Tên hàng hóa'] || row['Tên thuốc'] || row['Tên'];
-                    const code = row['Mã'] || row['Mã SP'] || row['Code'];
-                    if(name) map.set(cleanSearchStr(name), { name, code: code || '' });
+                if(f.data) f.data.forEach(r => {
+                    const name = r['Tên Hàng Hóa'] || r['Tên thuốc'] || r['Tên'];
+                    const code = r['Mã SP'] || r['Mã'] || r['Code'];
+                    if(name) {
+                        const key = cleanStr(name);
+                        // Save Code & Name mapping
+                        map.set(key, { name: name, code: code || '', searchKey: key });
+                    }
                 });
             });
-            masterData = Array.from(map.values()).map(i => ({...i, searchKey: cleanSearchStr(i.name)}));
-        }
-        function updateMasterDataFromStock() {
-            allDocuments.forEach(d => {
-                if(d.productName) {
-                    const k = cleanSearchStr(d.productName);
-                    if(!masterData.find(m => m.searchKey === k)) masterData.push({ name: d.productName, code: d.productCode || '', searchKey: k });
-                }
-            });
+            masterData = Array.from(map.values());
+            document.getElementById('master-status').innerText = `Đã tải ${masterData.length} sản phẩm gốc.`;
         }
 
-        // Autocomplete
+        // 3. AUTOCOMPLETE INPUT
         const impName = document.getElementById('imp-name');
-        const impList = document.getElementById('imp-name-list');
+        const impList = document.getElementById('imp-suggest');
+
         impName.addEventListener('input', function() {
-            const val = cleanSearchStr(this.value);
-            impList.innerHTML = ''; if(!val) return;
-            const matches = masterData.filter(m => m.searchKey.includes(val) || (m.code && m.code.toLowerCase().includes(val))).slice(0,10);
+            const val = cleanStr(this.value);
+            impList.innerHTML = '';
+            if(!val) return;
+
+            // Search by Clean Key OR Code
+            const matches = masterData.filter(m => m.searchKey.includes(val) || (m.code && m.code.toLowerCase().includes(val))).slice(0, 10);
+            
             matches.forEach(m => {
-                const d = document.createElement('div');
-                d.innerHTML = `<strong>${m.name}</strong> ${m.code ? `(${m.code})` : ''}`;
-                d.onclick = () => { impName.value = m.name; document.getElementById('imp-code').value = m.code || ''; impList.innerHTML = ''; };
-                impList.appendChild(d);
+                const div = document.createElement('div');
+                div.className = 'autocomplete-item';
+                div.innerHTML = `<strong>${m.name}</strong> <br> <small style="color:#64748b">Mã: ${m.code || '...'}</small>`;
+                div.onclick = () => {
+                    // FILL DATA AUTOMATICALLY
+                    impName.value = m.name;
+                    document.getElementById('imp-code').value = m.code || '';
+                    impList.innerHTML = '';
+                };
+                impList.appendChild(div);
             });
         });
         document.addEventListener('click', e => { if(e.target !== impName) impList.innerHTML = ''; });
 
-        // Nhập Lẻ (Có thêm Unit)
-        document.getElementById('btn-manual-import').addEventListener('click', async () => {
+        // 4. IMPORT LOGIC
+        window.saveManual = async () => {
             const item = {
                 productName: document.getElementById('imp-name').value.trim(),
                 productCode: document.getElementById('imp-code').value.trim(),
                 unit: document.getElementById('imp-unit').value.trim(),
                 lotNumber: document.getElementById('imp-lot').value.trim(),
-                expiryDate: document.getElementById('imp-expiry').value,
+                expiryDate: document.getElementById('imp-exp').value,
                 quantity: parseInt(document.getElementById('imp-qty').value),
                 importDate: document.getElementById('imp-date').value,
-                slipCode: document.getElementById('imp-slip').value.trim(),
                 createdAt: new Date().toISOString()
             };
-            if(!item.productName || !item.lotNumber || !item.expiryDate || !item.quantity) { showToast('Thiếu thông tin (*)', 'error'); return; }
+            if(!item.productName || !item.unit || !item.lotNumber || !item.quantity) return showToast('Thiếu thông tin!', 'error');
+            
             await saveToInventory(item);
-            showToast('Nhập kho thành công!', 'success');
-            // Reset
-            document.getElementById('imp-name').value = ''; document.getElementById('imp-code').value = '';
-            document.getElementById('imp-unit').value = ''; document.getElementById('imp-lot').value = ''; document.getElementById('imp-qty').value = '';
+            showToast('Đã nhập kho!', 'success');
+            ['imp-name','imp-code','imp-unit','imp-lot','imp-qty'].forEach(id => document.getElementById(id).value='');
+        };
+
+        window.processPaste = () => {
+            const txt = document.getElementById('paste-area').value;
+            if(!txt) return;
+            // STT | Name | Unit | Lot | Exp | Qty
+            const rows = txt.trim().split('\n').map(r => r.split('\t'));
+            const data = rows.map((c, i) => ({
+                name: c[1], unit: c[2], lot: c[3], exp: parseDate(c[4]), qty: c[5]
+            }));
+            processBulk(data);
+        };
+
+        document.getElementById('import-file').addEventListener('change', e => {
+            const f = e.target.files[0];
+            if(!f) return;
+            const r = new FileReader();
+            r.onload = evt => {
+                const wb = XLSX.read(new Uint8Array(evt.target.result), {type:'array'});
+                const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+                const data = json.map(r => ({
+                    name: r['Tên Hàng Hóa']||r['Tên'],
+                    unit: r['Đơn Vị']||r['Đơn vị'],
+                    lot: r['Số Lô']||r['Số lô'],
+                    exp: parseDate(r['Hạn Sử Dụng']||r['Hạn dùng']),
+                    qty: r['Số Lượng']||r['Số lượng']
+                }));
+                processBulk(data);
+            };
+            r.readAsArrayBuffer(f);
         });
 
-        // Import Excel/Paste (Cập nhật cột Unit)
-        function parseDate(val) {
-            if(!val) return '';
-            if(typeof val === 'number') return new Date((val - (25567 + 2)) * 86400 * 1000).toISOString().split('T')[0];
-            if(typeof val === 'string') {
-                if(val.includes('/')) { const p = val.split('/'); if(p.length===3) return `${p[2]}-${p[1]}-${p[0]}`; }
-                if(val.includes('-') && val.split('-')[0].length!==4) { const p = val.split('-'); return `${p[2]}-${p[1]}-${p[0]}`; }
-            }
-            return val;
+        function parseDate(v) {
+            if(!v) return '';
+            if(typeof v === 'number') return new Date((v - 25569)*86400000).toISOString().split('T')[0];
+            if(v.includes('/')) { const p = v.split('/'); if(p.length===3) return `${p[2]}-${p[1]}-${p[0]}`; }
+            return v;
         }
-        document.getElementById('btn-process-paste').addEventListener('click', () => {
-            const txt = document.getElementById('paste-input').value; if(!txt.trim()) return;
-            // Map: STT | Name | Unit | Lot | Exp | Qty
-            processImportData(txt.trim().split('\n').map((r, i) => { 
-                const c = r.split('\t'); 
-                return { stt: c[0], name: c[1], unit: c[2], lot: c[3], exp: c[4], qty: c[5] }; 
-            }));
-        });
-        document.getElementById('import-file-input').addEventListener('change', (e) => {
-            const f = e.target.files[0]; if(!f) return;
-            const r = new FileReader(); r.onload = (evt) => {
-                const wb = XLSX.read(new Uint8Array(evt.target.result), {type:'array'});
-                const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-                processImportData(data.map((r, i) => ({ 
-                    stt: r['STT']||i+1, 
-                    name: r['Tên Hàng Hóa']||r['Tên hàng hóa']||r['Tên thuốc'], 
-                    unit: r['Đơn Vị']||r['Đơn vị']||r['Don vi'], 
-                    lot: r['Số Lô']||r['Số lô'], 
-                    exp: r['Hạn Sử Dụng']||r['Hạn sử dụng'], 
-                    qty: r['Số Lượng']||r['Số lượng'] 
-                })));
-            }; r.readAsArrayBuffer(f);
-        });
-        function processImportData(data) {
-            previewData = data.map((r, i) => {
-                const found = masterData.find(m => m.searchKey === cleanSearchStr(r.name));
-                return { id: i, stt: r.stt, productName: r.name, productCode: found ? found.code : '', unit: r.unit, lotNumber: r.lot, expiryDate: parseDate(r.exp), quantity: r.qty };
+
+        function processBulk(data) {
+            previewData = data.map((d, i) => {
+                // Find Code from Master Data using Smart Search
+                const found = masterData.find(m => m.searchKey === cleanStr(d.name));
+                return {
+                    id: i,
+                    productName: d.name,
+                    productCode: found ? found.code : '', // Auto load code
+                    unit: d.unit,
+                    lotNumber: d.lot,
+                    expiryDate: d.exp,
+                    quantity: d.qty
+                };
             });
-            renderPreviewTable(); document.getElementById('preview-section').style.display = 'block';
+            renderPreview();
+            document.getElementById('preview-box').style.display = 'block';
         }
-        function renderPreviewTable() {
+
+        function renderPreview() {
             const tb = document.getElementById('preview-body'); tb.innerHTML = '';
             previewData.forEach((d, i) => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${d.stt}</td>
-                    <td><input value="${d.productCode}" onchange="previewData[${i}].productCode=this.value"></td>
-                    <td>${d.productName}</td>
-                    <td>${d.unit || ''}</td>
-                    <td><input value="${d.lotNumber}" onchange="previewData[${i}].lotNumber=this.value"></td>
-                    <td><input type="date" value="${d.expiryDate}" onchange="previewData[${i}].expiryDate=this.value"></td>
-                    <td><input type="number" value="${d.quantity}" onchange="previewData[${i}].quantity=this.value" style="width:50px"></td>
-                    <td><button onclick="previewData.splice(${i},1);renderPreviewTable()" style="color:red;border:none;background:none;cursor:pointer">X</button></td>`;
-                tb.appendChild(tr);
+                tb.innerHTML += `
+                    <tr>
+                        <td><input value="${d.productCode}" onchange="previewData[${i}].productCode=this.value"></td>
+                        <td>${d.productName}</td>
+                        <td>${d.unit||''}</td>
+                        <td><input value="${d.lotNumber}" onchange="previewData[${i}].lotNumber=this.value"></td>
+                        <td><input type="date" value="${d.expiryDate}" onchange="previewData[${i}].expiryDate=this.value"></td>
+                        <td><input type="number" value="${d.quantity}" onchange="previewData[${i}].quantity=this.value" style="width:50px"></td>
+                        <td><button class="btn btn-danger" style="padding:2px 6px" onclick="previewData.splice(${i},1);renderPreview()">X</button></td>
+                    </tr>
+                `;
             });
         }
-        document.getElementById('btn-sync-data').addEventListener('click', async function() {
-            this.disabled = true; this.innerText = 'Đang đồng bộ...';
+
+        window.syncData = async () => {
             for(const d of previewData) {
-                if(d.productName && d.quantity > 0) await saveToInventory({
-                    productName: d.productName, productCode: d.productCode, unit: d.unit, 
-                    lotNumber: d.lotNumber, expiryDate: d.expiryDate,
-                    quantity: parseInt(d.quantity), importDate: new Date().toISOString().split('T')[0], 
-                    slipCode: 'BULK', createdAt: new Date().toISOString()
-                });
+                if(d.productName && d.quantity) {
+                    await saveToInventory({
+                        productName: d.productName, productCode: d.productCode, unit: d.unit,
+                        lotNumber: d.lotNumber, expiryDate: d.expiryDate, quantity: parseInt(d.quantity),
+                        importDate: new Date().toISOString().split('T')[0], createdAt: new Date().toISOString()
+                    });
+                }
             }
-            showToast('Đồng bộ xong!', 'success'); document.getElementById('preview-section').style.display = 'none'; this.disabled = false; this.innerText = 'ĐỒNG BỘ';
-        });
+            showToast('Đồng bộ xong!', 'success');
+            document.getElementById('preview-box').style.display = 'none';
+        }
 
         async function saveToInventory(item) {
-            const exist = allDocuments.find(d => d.productName.toLowerCase() === item.productName.toLowerCase() && d.lotNumber.toLowerCase() === item.lotNumber.toLowerCase() && d.expiryDate === item.expiryDate);
-            if(exist) await documentsRef.child(exist.id).update({ quantity: parseInt(exist.quantity) + parseInt(item.quantity), updatedAt: new Date().toISOString() });
-            else await documentsRef.push(item);
+            const exist = stockData.find(s => 
+                s.productName.toLowerCase() === item.productName.toLowerCase() &&
+                s.lotNumber.toLowerCase() === item.lotNumber.toLowerCase() &&
+                s.expiryDate === item.expiryDate
+            );
+            if(exist) {
+                await refs.items.child(exist.id).update({
+                    quantity: parseInt(exist.quantity) + parseInt(item.quantity),
+                    unit: item.unit // Update unit if new
+                });
+            } else {
+                await refs.items.push(item);
+            }
         }
 
-        // --- 3. TAB 2: GIỮ NGUYÊN LOGIC GỐC ---
-        window.handleProductClick = function(name) {
-            document.getElementById('tab2-btn').click();
-            document.getElementById('export-product-name-input').value = name;
-            showLotSuggestions(name);
+        // 5. STOCK TABLE & ACTIONS
+        function renderStock() {
+            const tb = document.getElementById('stock-body'); tb.innerHTML = '';
+            const term = document.getElementById('search-stock').value.toLowerCase();
+            const list = stockData.filter(d => (d.productName||'').toLowerCase().includes(term) || (d.lotNumber||'').includes(term))
+                .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)); // Default sort
+
+            list.forEach((d, i) => {
+                tb.innerHTML += `
+                    <tr>
+                        <td>${i+1}</td>
+                        <td>${d.productCode||''}</td>
+                        <td><b>${d.productName}</b></td>
+                        <td>${d.unit||''}</td>
+                        <td>${d.lotNumber}</td>
+                        <td>${d.expiryDate}</td>
+                        <td style="font-weight:bold">${d.quantity}</td>
+                        <td>
+                            <button class="btn btn-warning" style="padding:4px 8px; font-size:0.8rem" onclick="editStock('${d.id}')">Sửa</button>
+                            <button class="btn btn-danger" style="padding:4px 8px; font-size:0.8rem" onclick="delStock('${d.id}')">Xóa</button>
+                        </td>
+                    </tr>
+                `;
+            });
         }
+        document.getElementById('search-stock').addEventListener('input', renderStock);
+
+        window.editStock = (id) => {
+            const d = stockData.find(x => x.id === id);
+            document.getElementById('edit-id').value = id;
+            document.getElementById('edit-name').value = d.productName;
+            document.getElementById('edit-code').value = d.productCode;
+            document.getElementById('edit-unit').value = d.unit;
+            document.getElementById('edit-lot').value = d.lotNumber;
+            document.getElementById('edit-exp').value = d.expiryDate;
+            document.getElementById('edit-qty').value = d.quantity;
+            document.getElementById('edit-modal').style.display='flex';
+        }
+
+        window.saveEdit = async () => {
+            const id = document.getElementById('edit-id').value;
+            await refs.items.child(id).update({
+                productName: document.getElementById('edit-name').value,
+                productCode: document.getElementById('edit-code').value,
+                unit: document.getElementById('edit-unit').value,
+                lotNumber: document.getElementById('edit-lot').value,
+                expiryDate: document.getElementById('edit-exp').value,
+                quantity: parseInt(document.getElementById('edit-qty').value)
+            });
+            document.getElementById('edit-modal').style.display='none';
+            showToast('Đã sửa', 'success');
+        }
+
+        window.delStock = (id) => { if(confirm('Xóa?')) refs.items.child(id).remove(); }
+        window.deleteAll = () => { if(prompt('Mật khẩu xóa (ideco2025):') === 'ideco2025') refs.items.remove(); }
+
+        // 6. EXPORT LOGIC
+        const expInp = document.getElementById('exp-name');
+        const expSugg = document.getElementById('exp-suggest');
         
-        const expInput = document.getElementById('export-product-name-input');
-        const expList = document.getElementById('export-product-autocomplete');
-        expInput.addEventListener('input', function() {
-            const val = this.value.toLowerCase(); expList.innerHTML = '';
-            document.getElementById('lot-suggestions-container').innerHTML = '';
+        expInp.addEventListener('input', function() {
+            const val = cleanStr(this.value);
+            expSugg.innerHTML = '';
             if(!val) return;
-            [...new Set(allDocuments.map(d=>d.productName))].filter(n=>n.toLowerCase().includes(val)).forEach(n=>{
-                const d = document.createElement('div'); d.innerHTML = n; d.onclick=()=>{handleProductClick(n);expList.innerHTML='';}; expList.appendChild(d);
+            // Find in Stock (Qty > 0)
+            const matches = stockData.filter(d => parseInt(d.quantity) > 0 && cleanStr(d.productName).includes(val));
+            const names = [...new Set(matches.map(m => m.productName))];
+            
+            names.forEach(n => {
+                const d = document.createElement('div');
+                d.className = 'autocomplete-item';
+                d.innerHTML = n;
+                d.onclick = () => { loadLotsForExport(n); expSugg.innerHTML = ''; expInp.value = n; };
+                expSugg.appendChild(d);
             });
         });
 
-        function showLotSuggestions(name) {
-            const div = document.getElementById('lot-suggestions-container'); div.innerHTML = '';
-            const lots = allDocuments.filter(d => d.productName === name && parseInt(d.quantity) > 0).sort((a,b) => new Date(a.expiryDate) - new Date(b.expiryDate));
-            if(lots.length===0) { div.innerHTML='<div class="empty-list">Hết hàng.</div>'; document.getElementById('export-quantity').disabled=true; return; }
+        function loadLotsForExport(name) {
+            const lots = stockData.filter(d => d.productName === name && parseInt(d.quantity) > 0)
+                .sort((a,b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+            
+            const div = document.getElementById('lot-list'); div.innerHTML = '';
             lots.forEach((l, i) => {
-                const el = document.createElement('div'); el.className = 'lot-suggestion'; if(i===0) el.style.border='2px solid #10b981';
-                el.innerHTML = `Lô: <b>${l.lotNumber}</b> - Hạn: <span style="color:red">${new Date(l.expiryDate).toLocaleDateString('vi-VN')}</span> - Tồn: <b>${l.quantity}</b>`;
+                const el = document.createElement('div');
+                el.style.border = i===0 ? '2px solid var(--success)' : '1px solid #e2e8f0';
+                el.style.padding = '10px'; el.style.marginBottom = '5px'; el.style.cursor='pointer'; el.style.borderRadius='6px';
+                el.innerHTML = `Lô: <b>${l.lotNumber}</b> | Hạn: ${l.expiryDate} | SL: <b>${l.quantity}</b> ${i===0?'(Ưu tiên)':''}`;
                 el.onclick = () => {
-                    currentExportLot = {...l};
-                    const q = document.getElementById('export-quantity'); q.max=l.quantity; q.placeholder=`Max ${l.quantity}`; q.value=''; q.disabled=false; q.focus();
-                    document.getElementById('confirm-export-btn').disabled=false;
-                    document.querySelectorAll('.lot-suggestion').forEach(x=>x.style.backgroundColor='white'); el.style.backgroundColor='#ecfdf5';
+                    currentExportLot = l;
+                    document.getElementById('exp-qty').disabled = false;
+                    document.getElementById('exp-qty').max = l.quantity;
+                    document.getElementById('exp-unit').value = l.unit || '';
+                    document.getElementById('btn-export').disabled = false;
+                    // Highlight
+                    Array.from(div.children).forEach(c=>c.style.background='white');
+                    el.style.background='#ecfdf5';
                 };
                 div.appendChild(el);
             });
         }
 
-        document.getElementById('confirm-export-btn').addEventListener('click', async function() {
+        window.confirmExport = async () => {
             if(!currentExportLot) return;
-            const qty = parseInt(document.getElementById('export-quantity').value);
-            if(!qty || qty <= 0 || qty > parseInt(currentExportLot.quantity)) { showToast('Số lượng sai', 'error'); return; }
-            
-            const exp = {
-                productName: currentExportLot.productName, productCode: currentExportLot.productCode||'', lotNumber: currentExportLot.lotNumber,
-                expiryDate: currentExportLot.expiryDate, quantity: qty, destination: document.getElementById('export-destination').value,
-                exportDate: document.getElementById('export-date').value, relatedImportId: currentExportLot.id, exportedAt: new Date().toISOString()
+            const qty = parseInt(document.getElementById('exp-qty').value);
+            if(!qty || qty > currentExportLot.quantity) return showToast('Số lượng không hợp lệ', 'error');
+
+            const item = {
+                productName: currentExportLot.productName,
+                productCode: currentExportLot.productCode,
+                unit: currentExportLot.unit, // SAVE UNIT
+                lotNumber: currentExportLot.lotNumber,
+                expiryDate: currentExportLot.expiryDate,
+                quantity: qty,
+                destination: document.getElementById('exp-dest').value,
+                exportDate: document.getElementById('exp-date').value,
+                relatedId: currentExportLot.id
             };
-            const ref = await exportsRef.push(exp);
-            await documentsRef.child(currentExportLot.id).update({ quantity: parseInt(currentExportLot.quantity) - qty });
+            await refs.exports.push(item);
+            await refs.items.child(currentExportLot.id).update({ quantity: parseInt(currentExportLot.quantity) - qty });
             
-            currentExportSessionRecords.push({ id: ref.key, ...exp });
-            updateExportRecordsList(currentExportSessionRecords);
-            showToast('Xuất kho OK!', 'success');
-            document.getElementById('export-quantity').value = ''; document.getElementById('export-quantity').disabled=true; currentExportLot=null;
-        });
+            showToast('Xuất thành công', 'success');
+            document.getElementById('lot-list').innerHTML='';
+            document.getElementById('exp-qty').value='';
+            document.getElementById('exp-qty').disabled=true;
+        }
 
-        function updateExportRecordsList(records) {
-            const div = document.getElementById('export-records-list');
-            if(records.length===0) { div.innerHTML='<div class="empty-list">Chưa có phiếu xuất.</div>'; return; }
-            div.innerHTML = records.map(r => `
-                <div class="export-record-item" id="exp-${r.id}">
-                    <div><b>${r.productName}</b> (Lô: ${r.lotNumber})<br>Xuất: ${r.quantity} | Đến: ${r.destination||'-'}</div>
-                    <div style="display:flex; gap:5px">
-                        <button class="btn btn-warning btn-sm" onclick="editExport('${r.id}')" style="margin:0">Sửa</button>
-                        <button class="btn btn-danger btn-sm" onclick="delExport('${r.id}')" style="margin:0">Xóa</button>
+        function renderExportHistory() {
+            const div = document.getElementById('export-list'); div.innerHTML = '';
+            exportData.sort((a,b)=>new Date(b.exportDate)-new Date(a.exportDate)).forEach(e => {
+                div.innerHTML += `
+                    <div style="border-bottom:1px solid #f1f5f9; padding:10px; display:flex; justify-content:space-between">
+                        <div>
+                            <b>${e.productName}</b> (${e.unit||''}) <br>
+                            <small>Lô: ${e.lotNumber} | SL: ${e.quantity} -> ${e.destination}</small>
+                        </div>
+                        <button class="btn btn-danger btn-sm" onclick="deleteExport('${e.id}')">X</button>
                     </div>
-                </div>`).join('');
+                `;
+            });
         }
-        
-        window.editExport = function(id) {
-            const r = currentExportSessionRecords.find(x=>x.id===id); if(!r) return;
-            document.getElementById(`exp-${id}`).innerHTML = `
-                <div style="flex:1"><b>${r.productName}</b><br>SL: <input id="eq-${id}" value="${r.quantity}" style="width:50px"> Đến: <input id="ed-${id}" value="${r.destination}"></div>
-                <div><button class="btn btn-success btn-sm" onclick="saveExport('${id}')">Lưu</button></div>`;
-        }
-        window.saveExport = async function(id) {
-            const nq = parseInt(document.getElementById(`eq-${id}`).value);
-            const nd = document.getElementById(`ed-${id}`).value;
-            const old = currentExportSessionRecords.find(x=>x.id===id);
-            const diff = nq - parseInt(old.quantity);
-            // Update
-            await exportsRef.child(id).update({ quantity: nq, destination: nd });
-            // Adjust stock
-            const doc = allDocuments.find(d=>d.id===old.relatedImportId);
-            if(doc) await documentsRef.child(doc.id).update({ quantity: parseInt(doc.quantity) - diff });
-            
-            old.quantity = nq; old.destination = nd; updateExportRecordsList(currentExportSessionRecords); showToast('Đã sửa!', 'success');
-        }
-        window.delExport = async function(id) {
-            if(!confirm('Xóa phiếu này và hoàn kho?')) return;
-            const old = currentExportSessionRecords.find(x=>x.id===id);
-            const doc = allDocuments.find(d=>d.id===old.relatedImportId);
-            if(doc) await documentsRef.child(doc.id).update({ quantity: parseInt(doc.quantity) + parseInt(old.quantity) });
-            await exportsRef.child(id).remove();
-            currentExportSessionRecords = currentExportSessionRecords.filter(x=>x.id!==id);
-            updateExportRecordsList(currentExportSessionRecords); showToast('Đã xóa!', 'success');
-        }
-        document.getElementById('refresh-export-form-btn').addEventListener('click', ()=>{ currentExportSessionRecords=[]; updateExportRecordsList([]); });
 
-        // Report
-        document.getElementById('generate-report-btn').addEventListener('click', ()=>{
-            const start=new Date(document.getElementById('report-start-date').value||'2000-01-01');
-            const end=new Date(document.getElementById('report-end-date').value||'2099-12-31'); end.setHours(23,59,59);
-            const filter=document.getElementById('report-product-name').value.toLowerCase();
-            const div=document.getElementById('report-list'); div.innerHTML='';
+        window.deleteExport = async (id) => {
+            if(!confirm('Hủy phiếu và hoàn kho?')) return;
+            const ex = exportData.find(x => x.id === id);
+            const stock = stockData.find(s => s.id === ex.relatedId);
+            if(stock) await refs.items.child(stock.id).update({ quantity: parseInt(stock.quantity) + parseInt(ex.quantity) });
+            await refs.exports.child(id).remove();
+            showToast('Đã hủy', 'success');
+        }
+
+        // 7. REPORT & EXCEL
+        window.genReport = () => {
+            const start = new Date(document.getElementById('rpt-start').value || '2000-01-01');
+            const end = new Date(document.getElementById('rpt-end').value || '2099-12-31');
+            const filter = document.getElementById('rpt-filter').value.toLowerCase();
             
-            const report={};
-            allDocuments.forEach(d=>{
-                if(filter && !d.productName.toLowerCase().includes(filter)) return;
-                if(!report[d.productName]) report[d.productName]=0;
-                report[d.productName]+=parseInt(d.quantity);
+            const rpt = {};
+            // Snapshot aggregation
+            stockData.forEach(s => {
+                if(filter && !s.productName.toLowerCase().includes(filter)) return;
+                if(!rpt[s.productName]) rpt[s.productName] = { name:s.productName, unit:s.unit||'', in:0, out:0, end:0 };
+                rpt[s.productName].end += parseInt(s.quantity);
+                const d = new Date(s.createdAt);
+                if(d>=start && d<=end) rpt[s.productName].in += parseInt(s.quantity); // Approx
             });
-            Object.keys(report).forEach(name=>{
-                div.innerHTML += `<div class="document-item" ondblclick="handleProductClick('${name}')" style="cursor:pointer"><div><b>${name}</b></div><div>Tồn: <b>${report[name]}</b></div></div>`;
+            exportData.forEach(e => {
+                const d = new Date(e.exportDate);
+                if(d>=start && d<=end) {
+                    if(!rpt[e.productName]) rpt[e.productName] = { name:e.productName, unit:e.unit||'', in:0, out:0, end:0 };
+                    rpt[e.productName].out += parseInt(e.quantity);
+                }
             });
-        });
-        document.getElementById('report-product-name').addEventListener('input', function(){
-            const v=this.value.toLowerCase(); const l=document.getElementById('report-product-autocomplete'); l.innerHTML=''; if(!v)return;
-            [...new Set(allDocuments.map(d=>d.productName))].filter(n=>n.toLowerCase().includes(v)).forEach(n=>{
-                const d=document.createElement('div'); d.innerHTML=n; d.onclick=()=>{this.value=n;l.innerHTML='';}; l.appendChild(d);
+
+            const tb = document.getElementById('rpt-body'); tb.innerHTML = '';
+            Object.values(rpt).forEach(r => {
+                tb.innerHTML += `<tr><td>${r.name}</td><td>${r.unit}</td><td>-</td><td>${r.in}</td><td>${r.out}</td><td>${r.end}</td></tr>`;
             });
+        }
+
+        window.exportReportExcel = () => {
+            const tb = document.getElementById('rpt-table');
+            const wb = XLSX.utils.table_to_book(tb);
+            XLSX.writeFile(wb, "BaoCaoXNT.xlsx");
+        }
+
+        window.exportHistoryExcel = () => {
+            const data = exportData.map(e => ({
+                'Ngày': e.exportDate, 'Mã SP': e.productCode, 'Tên': e.productName,
+                'Đơn Vị': e.unit, 'Số Lô': e.lotNumber, 'Hạn': e.expiryDate, 'SL': e.quantity, 'Nơi Nhận': e.destination
+            }));
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "PhieuXuat");
+            XLSX.writeFile(wb, "LichSuXuat.xlsx");
+        }
+
+        // Master File Logic
+        document.getElementById('master-file').addEventListener('change', e => {
+            const f = e.target.files[0];
+            const r = new FileReader();
+            r.onload = evt => {
+                const wb = XLSX.read(new Uint8Array(evt.target.result), {type:'array'});
+                const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+                refs.master.push({ fileName: f.name, data: json });
+                showToast('Đã tải danh mục', 'success');
+            }
+            r.readAsArrayBuffer(f);
         });
 
         // Utils
-        window.toggleMasterData = () => { const el = document.getElementById('master-data-section'); el.style.display = el.style.display==='none'?'block':'none'; }
-        document.getElementById('master-file-upload').addEventListener('change', e => {
-            const f = e.target.files[0];
-            const r = new FileReader(); r.onload = evt => {
-                const wb = XLSX.read(new Uint8Array(evt.target.result), {type:'array'});
-                const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-                excelFilesRef.push({ fileName: f.name, data });
-                renderMasterFiles([{fileName: f.name}]); 
-            }; r.readAsArrayBuffer(f);
-        });
-        function renderMasterFiles(files) { document.getElementById('master-file-list').innerHTML = files.map(f => `<div>📄 ${f.fileName}</div>`).join(''); }
-        window.showImportMode = mode => { document.getElementById('mode-paste').style.display = mode === 'paste' ? 'block' : 'none'; document.getElementById('mode-file').style.display = mode === 'file' ? 'block' : 'none'; }
-        window.cancelImport = () => { previewData = []; document.getElementById('preview-section').style.display = 'none'; }
-        
-        function showToast(msg, type='info') {
-            const t = document.getElementById('toast'); t.className=`toast ${type} show`; t.innerText=msg;
-            setTimeout(()=>t.classList.remove('show'), 3000);
+        window.switchTab = (id, el) => {
+            document.querySelectorAll('.tab-content').forEach(d=>d.style.display='none');
+            document.getElementById(id).style.display='block';
+            document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+            el.classList.add('active');
         }
-        
-        // Excel Export (Gốc)
-        document.getElementById('export-excel-file').addEventListener('change', (e) => { if(e.target.files.length) { document.getElementById('export-excel-file-name').innerText = e.target.files[0].name; document.getElementById('process-export-btn').disabled = false; } });
-        document.getElementById('preview-export-btn').addEventListener('click', () => {
-            const f = document.getElementById('export-excel-file').files[0]; if(!f) return showToast('Chọn file', 'error');
-            const r = new FileReader(); r.onload = e => {
-                const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'}); exportExcelData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-                document.getElementById('export-preview-body').innerHTML = exportExcelData.map(r=>`<tr><td>${r['Mã SP']||''}</td><td>${r['Tên Hàng Hóa']||r['Tên sản phẩm']}</td><td>${r['Số lượng']||0}</td></tr>`).join('');
-                document.getElementById('export-preview-container').style.display='block';
-            }; r.readAsArrayBuffer(f);
-        });
-        document.getElementById('process-export-btn').addEventListener('click', async function() {
-            this.disabled=true; this.innerText='Đang xử lý...';
-            let c=0;
-            for(const r of exportExcelData) {
-                const n=r['Tên Hàng Hóa']||r['Tên sản phẩm']; let q=parseInt(r['Số lượng']||0);
-                const lots=allDocuments.filter(d=>d.productName===n && parseInt(d.quantity)>0).sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate));
-                for(const l of lots) {
-                    if(q<=0) break; const t=Math.min(q, parseInt(l.quantity));
-                    await exportsRef.push({productName:n, lotNumber:l.lotNumber, expiryDate:l.expiryDate, quantity:t, destination:'Excel Auto', exportDate:document.getElementById('export-date').value, relatedImportId:l.id, exportedAt:new Date().toISOString()});
-                    await documentsRef.child(l.id).update({quantity:parseInt(l.quantity)-t}); q-=t; c++;
-                }
-            }
-            showToast(`Xong ${c} phiếu`, 'success'); this.disabled=false; this.innerText='Xử Lý';
-        });
-
-        // Tab Switch
-        document.querySelectorAll('.nav-tab').forEach(t => {
-            t.addEventListener('click', () => {
-                document.querySelectorAll('.nav-tab').forEach(x => x.classList.remove('active'));
-                document.querySelectorAll('.tab-content').forEach(x => x.classList.remove('active'));
-                t.classList.add('active'); document.getElementById(t.dataset.tab).classList.add('active');
-            });
-        });
+        window.toggleMode = (m) => {
+            document.getElementById('mode-paste').style.display = m==='paste'?'block':'none';
+            document.getElementById('mode-file').style.display = m==='file'?'block':'none';
+        }
+        window.showToast = (m,t) => {
+            const el=document.getElementById('toast'); el.textContent=m; el.style.background=t==='error'?'#ef4444':'#1e293b';
+            el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),3000);
+        }
     </script>
 </body>
 </html>
