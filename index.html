@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản Lý Kho Dược GDP - IDECO (Security Update)</title>
+    <title>Quản Lý Kho Dược GDP - IDECO (Updated)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -57,16 +57,7 @@
         .export-info { flex: 1; }
         .export-actions { display: flex; gap: 5px; }
 
-        /* Footer Log Style */
-        .app-footer {
-            background: #f1f5f9;
-            padding: 10px 20px;
-            border-top: 1px solid #e2e8f0;
-            font-size: 0.85rem;
-            color: #64748b;
-            text-align: right;
-            font-style: italic;
-        }
+        .app-footer { background: #f1f5f9; padding: 10px 20px; border-top: 1px solid #e2e8f0; font-size: 0.85rem; color: #64748b; text-align: right; font-style: italic; }
     </style>
 </head>
 <body>
@@ -199,7 +190,7 @@
                 </div>
                 <div style="overflow-x:auto; margin-top:10px">
                     <table id="rpt-table">
-                        <thead><tr><th>Tên Hàng Hóa</th><th>Đơn Vị</th><th>Tồn Đầu</th><th>Nhập</th><th>Xuất</th><th>Tồn Cuối</th></tr></thead>
+                        <thead><tr><th>Mã SP</th><th>Tên Hàng Hóa</th><th>Đơn Vị</th><th>Tồn Đầu</th><th>Nhập</th><th>Xuất</th><th>Tồn Cuối</th></tr></thead>
                         <tbody id="rpt-body"></tbody>
                     </table>
                 </div>
@@ -215,13 +206,10 @@
         <div style="background:white; padding:25px; border-radius:12px; width:90%; max-width:400px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);">
             <h3 style="color:var(--danger); margin-top:0;">⚠️ XÓA TOÀN BỘ DỮ LIỆU</h3>
             <p style="color:#666; font-size:0.9rem;">Hành động này không thể hoàn tác. Vui lòng khai báo danh tính.</p>
-            
             <label>Tên người xóa (*)</label>
             <input type="text" id="del-user-name" placeholder="Nhập họ tên...">
-            
             <label>Mật khẩu quản trị (*)</label>
             <input type="password" id="del-password" placeholder="Nhập mật khẩu...">
-
             <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:15px">
                 <button class="btn btn-danger" onclick="confirmDeleteAll()">XÁC NHẬN XÓA</button>
                 <button class="btn btn-light" onclick="document.getElementById('delete-security-modal').style.display='none'" style="border:1px solid #ccc; color:#333">Hủy bỏ</button>
@@ -285,7 +273,7 @@
             items: db.ref('pharmaceuticals'), 
             master: db.ref('excelFiles'), 
             exports: db.ref('exports'),
-            logs: db.ref('systemLogs') // Thêm ref Log
+            logs: db.ref('systemLogs') 
         };
 
         let stockData=[], exportData=[], masterData=[], previewData=[], currentExportLot=null;
@@ -301,7 +289,6 @@
         refs.items.on('value', s => { const d=s.val(); stockData=d?Object.keys(d).map(k=>({id:k,...d[k]})):[]; renderStockTable(); refs.master.once('value', s=>{const fd=s.val();const f=fd?Object.keys(fd).map(k=>({id:k,...fd[k]})):[]; refreshMasterData(f);}); });
         refs.exports.on('value', s => { const d=s.val(); exportData=d?Object.keys(d).map(k=>({id:k,...d[k]})):[]; renderExportHistory(); });
         
-        // LOAD LOG (MỚI)
         refs.logs.on('value', s => {
             const log = s.val();
             const footer = document.getElementById('app-footer');
@@ -417,7 +404,8 @@
             if(list.length === 0) { div.innerHTML='<div style="padding:10px; color:#999; text-align:center">Chưa có lịch sử xuất.</div>'; return; }
             list.forEach(e => {
                 const item = document.createElement('div'); item.className = 'export-item';
-                item.innerHTML = `<div class="export-info"><strong>${e.productName}</strong> <span style="color:#666">(${e.unit || '-'})</span><br><small>Lô: ${e.lotNumber} | Hạn: ${e.expiryDate} | SL: <b style="color:var(--danger)">${e.quantity}</b></small><br><small style="color:#888">Ngày: ${e.exportDate} -> ${e.destination}</small></div><div class="export-actions"><button class="btn btn-warning" onclick="openEditExport('${e.id}')">Sửa</button><button class="btn btn-danger" onclick="deleteExport('${e.id}')">Xóa</button></div>`;
+                // THAY ĐỔI: Thêm mã SP vào lịch sử
+                item.innerHTML = `<div class="export-info"><strong>${e.productName}</strong> <span style="color:var(--secondary); font-weight:bold;">[${e.productCode || '--'}]</span> <span style="color:#666">(${e.unit || '-'})</span><br><small>Lô: ${e.lotNumber} | Hạn: ${e.expiryDate} | SL: <b style="color:var(--danger)">${e.quantity}</b></small><br><small style="color:#888">Ngày: ${e.exportDate} -> ${e.destination}</small></div><div class="export-actions"><button class="btn btn-warning" onclick="openEditExport('${e.id}')">Sửa</button><button class="btn btn-danger" onclick="deleteExport('${e.id}')">Xóa</button></div>`;
                 div.appendChild(item);
             });
         }
@@ -473,15 +461,30 @@
             const l=document.getElementById('lot-list'); l.innerHTML='';
             stockData.filter(d=>d.productName===name && parseInt(d.quantity)>0).sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate)).forEach((lot,i)=>{
                 const el=document.createElement('div'); el.style.padding='10px'; el.style.border=i===0?'2px solid green':'1px solid #ddd'; el.style.margin='5px 0';
-                el.innerHTML=`Lô: <b>${lot.lotNumber}</b> | Hạn: ${lot.expiryDate} | SL: ${lot.quantity}`;
+                // THAY ĐỔI: Hiển thị thêm mã khi chọn lô xuất
+                el.innerHTML=`Mã: <b>${lot.productCode||'--'}</b> | Lô: <b>${lot.lotNumber}</b> | Hạn: ${lot.expiryDate} | SL: ${lot.quantity}`;
                 el.onclick=()=>{ currentExportLot=lot; document.getElementById('exp-qty').disabled=false; document.getElementById('exp-qty').max=lot.quantity; document.getElementById('exp-unit').value=lot.unit||''; document.getElementById('btn-export').disabled=false; };
                 l.appendChild(el);
             });
         }
-        window.confirmExport=async()=>{
-            const q=parseInt(document.getElementById('exp-qty').value);
+        
+        window.confirmExport = async () => {
+            const q = parseInt(document.getElementById('exp-qty').value);
+            if(!currentExportLot) return;
+
+            // THAY ĐỔI: Logic kiểm tra tồn kho
+            const currentStock = parseInt(currentExportLot.quantity);
+            if(q > currentStock) {
+                showToast(`Xuất kho vượt quá tồn kho! (Tồn: ${currentStock})`, 'error');
+                return;
+            }
+            if(q <= 0) {
+                showToast(`Số lượng xuất không hợp lệ!`, 'error');
+                return;
+            }
+
             await refs.exports.push({productName:currentExportLot.productName, productCode: currentExportLot.productCode, unit: currentExportLot.unit, lotNumber: currentExportLot.lotNumber, expiryDate: currentExportLot.expiryDate, quantity:q, destination:document.getElementById('exp-dest').value, exportDate:document.getElementById('exp-date').value, relatedId:currentExportLot.id});
-            await refs.items.child(currentExportLot.id).update({quantity:parseInt(currentExportLot.quantity)-q});
+            await refs.items.child(currentExportLot.id).update({quantity:currentStock - q});
             showToast('Xuất OK','success'); document.getElementById('lot-list').innerHTML=''; document.getElementById('exp-qty').value=''; document.getElementById('btn-export').disabled=true;
         }
 
@@ -518,7 +521,19 @@
         window.saveEdit=async()=>{ const id=document.getElementById('edit-id').value; await refs.items.child(id).update({ productName:document.getElementById('edit-name').value, productCode:document.getElementById('edit-code').value, unit:document.getElementById('edit-unit').value, lotNumber:document.getElementById('edit-lot').value, expiryDate:document.getElementById('edit-exp').value, quantity:parseInt(document.getElementById('edit-qty').value) }); document.getElementById('edit-modal').style.display='none'; showToast('Đã lưu','success'); }
         document.getElementById('master-upload').addEventListener('change', e=>{ const f=e.target.files[0]; const r=new FileReader(); r.onload=evt=>{ const wb=XLSX.read(new Uint8Array(evt.target.result),{type:'array'}); const json=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]); refs.master.push({fileName:f.name, data:json}); showToast('OK','success'); }; r.readAsArrayBuffer(f); });
         function renderMasterFilesList(files){ document.getElementById('master-files-list').innerHTML=files.map(f=>`<div>📄 ${f.fileName} <a href="#" onclick="refs.master.child('${f.id}').remove()" style="color:red">Xóa</a></div>`).join(''); }
-        window.genReport=()=>{ const s=new Date(document.getElementById('rpt-start').value), e=new Date(document.getElementById('rpt-end').value); const r={}; stockData.forEach(i=>{ if(!r[i.productName]) r[i.productName]={name:i.productName,unit:i.unit||'',in:0,out:0,end:0}; r[i.productName].end+=parseInt(i.quantity); }); document.getElementById('rpt-body').innerHTML=Object.values(r).map(x=>`<tr ondblclick="handleProductClick('${x.name}')"><td>${x.name}</td><td>${x.unit}</td><td>-</td><td>${x.in}</td><td>${x.out}</td><td>${x.end}</td></tr>`).join(''); }
+        
+        // THAY ĐỔI: Logic Báo Cáo có thêm mã SP
+        window.genReport=()=>{ 
+            const s=new Date(document.getElementById('rpt-start').value), e=new Date(document.getElementById('rpt-end').value); 
+            const r={}; 
+            stockData.forEach(i=>{ 
+                if(!r[i.productName]) r[i.productName]={name:i.productName, code: i.productCode||'', unit:i.unit||'', in:0, out:0, end:0}; 
+                r[i.productName].end+=parseInt(i.quantity); 
+                // Cần tính toán in/out dựa trên lịch sử nếu muốn chính xác theo ngày, nhưng ở đây giữ logic cũ là chỉ hiển thị tồn cuối
+            }); 
+            document.getElementById('rpt-body').innerHTML=Object.values(r).map(x=>`<tr ondblclick="handleProductClick('${x.name}')"><td>${x.code}</td><td>${x.name}</td><td>${x.unit}</td><td>-</td><td>${x.in}</td><td>${x.out}</td><td>${x.end}</td></tr>`).join(''); 
+        }
+
         window.switchTab=(id,el)=>{ document.querySelectorAll('.tab-content').forEach(d=>d.style.display='none'); document.getElementById(id).style.display='block'; document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); }
         window.toggleMode=(m)=>{ document.getElementById('mode-paste').style.display=m==='paste'?'block':'none'; document.getElementById('mode-file').style.display=m==='file'?'block':'none'; }
         window.toggleMasterSection=()=>{ const el=document.getElementById('master-section'); el.style.display=el.style.display==='none'?'block':'none'; }
@@ -527,4 +542,3 @@
     </script>
 </body>
 </html>
-
