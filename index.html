@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản Lý Kho Dược GDP - IDECO (Pro Export)</title>
+    <title>Quản Lý Kho Dược GDP - IDECO (Full Features)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -59,7 +59,7 @@
 
         .app-footer { background: #f1f5f9; padding: 10px 20px; border-top: 1px solid #e2e8f0; font-size: 0.85rem; color: #64748b; text-align: right; font-style: italic; }
 
-        /* Error row style */
+        /* Error row style for Bulk Export */
         .row-error { background-color: #fee2e2 !important; }
         .row-error td { border-color: #fca5a5; }
     </style>
@@ -231,7 +231,7 @@
             </div>
 
             <div class="card" style="margin-top:20px; height:auto">
-                <div class="card-header">Báo Cáo Nhập Xuất Tồn</div>
+                <div class="card-header">Báo Cáo Nhập Xuất Tồn <small style="font-weight:normal; color:#666">(Nhấp đúp vào dòng để xuất)</small></div>
                 <div style="display:flex; gap:10px">
                     <input type="date" id="rpt-start">
                     <input type="date" id="rpt-end">
@@ -345,7 +345,7 @@
         };
 
         let stockData=[], exportData=[], masterData=[], previewData=[], currentExportLot=null;
-        let bulkExportPreviewData = []; // Store calculated FIFO export plan
+        let bulkExportPreviewData = []; 
 
         // INIT DATE
         const today = new Date().toISOString().split('T')[0];
@@ -544,11 +544,7 @@
         window.processExportWithSignature = () => {
             const keeper = document.getElementById('sign-keeper').value.trim();
             const manager = document.getElementById('sign-manager').value.trim();
-            
-            if(!keeper || !manager) {
-                return alert('Vui lòng nhập đủ tên 2 người chịu trách nhiệm!');
-            }
-            
+            if(!keeper || !manager) return alert('Vui lòng nhập đủ tên 2 người chịu trách nhiệm!');
             document.getElementById('signature-modal').style.display = 'none';
             exportHistoryWithSignatures(keeper, manager);
         }
@@ -568,7 +564,7 @@
             showToast('Đã xuất file kèm chữ ký!', 'success');
         }
 
-        // --- MANUAL EXPORT ---
+        // --- MANUAL EXPORT & DOUBLE CLICK LOGIC ---
         document.getElementById('exp-name').addEventListener('input', function(){
             const v=cleanStr(this.value); const l=document.getElementById('exp-suggest'); l.innerHTML=''; if(!v)return;
             const m=stockData.filter(d=>parseInt(d.quantity)>0 && cleanStr(d.productName).includes(v));
@@ -578,9 +574,17 @@
         });
         document.getElementById('exp-name').addEventListener('blur', ()=>setTimeout(()=>document.getElementById('exp-suggest').innerHTML='',200));
 
+        // RESTORED: Handle Product Click from Report Table
         window.handleProductClick = function(name) {
-            document.getElementById('btn-tab2').click(); window.scrollTo({top:0,behavior:'smooth'}); document.getElementById('exp-name').value=name;
+            // 1. Switch to Tab 2
+            document.getElementById('btn-tab2').click(); 
+            window.scrollTo({top:0,behavior:'smooth'}); 
+            
+            // 2. Fill input and load lots
+            document.getElementById('exp-name').value=name;
             const l=document.getElementById('lot-list'); l.innerHTML='';
+            
+            // 3. Find lots
             stockData.filter(d=>d.productName===name && parseInt(d.quantity)>0).sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate)).forEach((lot,i)=>{
                 const el=document.createElement('div'); el.style.padding='10px'; el.style.border=i===0?'2px solid green':'1px solid #ddd'; el.style.margin='5px 0';
                 el.innerHTML=`Mã: <b>${lot.productCode||'--'}</b> | Lô: <b>${lot.lotNumber}</b> | Hạn: ${lot.expiryDate} | SL: ${lot.quantity}`;
@@ -618,13 +622,11 @@
                 const ws=wb.Sheets[wb.SheetNames[0]];
                 const rows=XLSX.utils.sheet_to_json(ws, {header: 1});
                 if(!rows || rows.length===0) return;
-                // STT | Mã SP | Tên | ĐVT | SL
                 let data = [];
-                // Skip header if first row has text like 'Mã'
                 const startIdx = rows[0].join('').toLowerCase().includes('mã') ? 1 : 0;
                 for(let i=startIdx; i<rows.length; i++){
                     const r = rows[i];
-                    if(r[1] || r[2]) { // Must have Code or Name
+                    if(r[1] || r[2]) {
                         data.push({ code: r[1], name: r[2], unit: r[3], qty: r[4] });
                     }
                 }
@@ -637,19 +639,15 @@
             const txt = document.getElementById('exp-paste-area').value; 
             if(!txt) return; 
             const rows = txt.trim().split('\n').map(r=>r.split('\t')); 
-            // Expect: STT | Code | Name | Unit | Qty (Indices: 0, 1, 2, 3, 4)
             const data = rows.map(c => ({ code:c[1], name:c[2], unit:c[3], qty:c[4] }));
             processBulkExportInput(data);
         }
 
         function processBulkExportInput(inputData) {
-            bulkExportPreviewData = []; // Reset preview
-            
+            bulkExportPreviewData = []; 
             inputData.forEach((req) => {
                 let reqQty = parseInt(req.qty);
                 if (!reqQty || reqQty <= 0) return;
-
-                // 1. Find matching stock items (By Code first, then Name)
                 let matches = [];
                 const searchCode = cleanStr(req.code);
                 const searchName = cleanStr(req.name);
@@ -657,137 +655,63 @@
                 if (searchCode) {
                     matches = stockData.filter(s => cleanStr(s.productCode) === searchCode && parseInt(s.quantity) > 0);
                 }
-                // If no code match, try name
                 if (matches.length === 0 && searchName) {
                     matches = stockData.filter(s => cleanStr(s.productName) === searchName && parseInt(s.quantity) > 0);
                 }
 
-                // 2. Sort Matches by Expiry Date (Ascending - FIFO)
                 matches.sort((a,b) => new Date(a.expiryDate) - new Date(b.expiryDate));
-
-                // 3. Check Total Stock
                 const totalStock = matches.reduce((sum, item) => sum + parseInt(item.quantity), 0);
 
                 if (reqQty > totalStock) {
-                    // Not enough stock -> Add Error Row
-                    bulkExportPreviewData.push({
-                        isError: true,
-                        productCode: req.code || '?',
-                        productName: req.name || 'Sản phẩm chưa xác định',
-                        reqQty: reqQty,
-                        totalStock: totalStock,
-                        msg: `Thiếu hàng! (Cần: ${reqQty}, Có: ${totalStock})`
-                    });
+                    bulkExportPreviewData.push({ isError: true, productCode: req.code || '?', productName: req.name || 'Sản phẩm chưa xác định', reqQty: reqQty, totalStock: totalStock, msg: `Thiếu hàng! (Cần: ${reqQty}, Có: ${totalStock})` });
                 } else {
-                    // Enough stock -> Distribute (FIFO)
                     for (let batch of matches) {
                         if (reqQty <= 0) break;
-                        
                         let available = parseInt(batch.quantity);
                         let take = Math.min(available, reqQty);
-
-                        bulkExportPreviewData.push({
-                            isError: false,
-                            relatedId: batch.id, // Important: to update firebase later
-                            productCode: batch.productCode,
-                            productName: batch.productName,
-                            unit: batch.unit,
-                            lotNumber: batch.lotNumber,
-                            expiryDate: batch.expiryDate,
-                            exportQty: take,
-                            originalStock: available
-                        });
-
+                        bulkExportPreviewData.push({ isError: false, relatedId: batch.id, productCode: batch.productCode, productName: batch.productName, unit: batch.unit, lotNumber: batch.lotNumber, expiryDate: batch.expiryDate, exportQty: take, originalStock: available });
                         reqQty -= take;
                     }
                 }
             });
-
             renderBulkExportPreview();
             document.getElementById('exp-preview-box').style.display = 'flex';
         }
 
         function renderBulkExportPreview() {
-            const tb = document.getElementById('exp-preview-body'); 
-            tb.innerHTML = '';
-            
-            if(bulkExportPreviewData.length === 0) {
-                tb.innerHTML = '<tr><td colspan="6" style="text-align:center">Không tìm thấy dữ liệu hợp lệ.</td></tr>';
-                return;
-            }
-
+            const tb = document.getElementById('exp-preview-body'); tb.innerHTML = '';
+            if(bulkExportPreviewData.length === 0) { tb.innerHTML = '<tr><td colspan="6" style="text-align:center">Không tìm thấy dữ liệu hợp lệ.</td></tr>'; return; }
             bulkExportPreviewData.forEach((d, i) => {
                 const tr = document.createElement('tr');
                 if (d.isError) {
                     tr.className = 'row-error';
-                    tr.innerHTML = `
-                        <td>${d.productCode}</td>
-                        <td>${d.productName}</td>
-                        <td colspan="3" style="color:#b91c1c; font-weight:bold">${d.msg}</td>
-                        <td><button class="btn btn-danger" style="padding:2px 5px" onclick="removeBulkItem(${i})">X</button></td>
-                    `;
+                    tr.innerHTML = `<td>${d.productCode}</td><td>${d.productName}</td><td colspan="3" style="color:#b91c1c; font-weight:bold">${d.msg}</td><td><button class="btn btn-danger" style="padding:2px 5px" onclick="removeBulkItem(${i})">X</button></td>`;
                 } else {
-                    tr.innerHTML = `
-                        <td>${d.productCode}</td>
-                        <td><b>${d.productName}</b></td>
-                        <td>${d.lotNumber} <small style="color:#666">(Tồn: ${d.originalStock})</small></td>
-                        <td>${d.expiryDate}</td>
-                        <td style="font-weight:bold; color:var(--primary); text-align:center">${d.exportQty}</td>
-                        <td><button class="btn btn-danger" style="padding:2px 5px" onclick="removeBulkItem(${i})">X</button></td>
-                    `;
+                    tr.innerHTML = `<td>${d.productCode}</td><td><b>${d.productName}</b></td><td>${d.lotNumber} <small style="color:#666">(Tồn: ${d.originalStock})</small></td><td>${d.expiryDate}</td><td style="font-weight:bold; color:var(--primary); text-align:center">${d.exportQty}</td><td><button class="btn btn-danger" style="padding:2px 5px" onclick="removeBulkItem(${i})">X</button></td>`;
                 }
                 tb.appendChild(tr);
             });
         }
 
-        window.removeBulkItem = (i) => {
-            bulkExportPreviewData.splice(i, 1);
-            renderBulkExportPreview();
-        }
-
+        window.removeBulkItem = (i) => { bulkExportPreviewData.splice(i, 1); renderBulkExportPreview(); }
         window.executeBulkExport = async () => {
-            // Check if errors exist
-            if (bulkExportPreviewData.some(d => d.isError)) {
-                return alert('Vui lòng loại bỏ các dòng lỗi (màu đỏ) trước khi xuất kho!');
-            }
+            if (bulkExportPreviewData.some(d => d.isError)) return alert('Vui lòng loại bỏ các dòng lỗi (màu đỏ) trước khi xuất kho!');
             if (bulkExportPreviewData.length === 0) return;
-
             if (!confirm(`Bạn có chắc chắn xuất ${bulkExportPreviewData.length} mục không? Kho sẽ bị trừ ngay lập tức.`)) return;
-
             const dest = document.getElementById('bulk-exp-dest').value || 'Khách lẻ/Không xác định';
             const date = document.getElementById('bulk-exp-date').value;
-
             let count = 0;
             for (let item of bulkExportPreviewData) {
-                // 1. Get current stock from DB to be safe (Concurrency check simplified)
-                // Since this is a simple app, we trust stockData from listener but verify logic
                 const stockItem = stockData.find(s => s.id === item.relatedId);
-                
                 if (stockItem) {
                     const currentQty = parseInt(stockItem.quantity);
                     if (currentQty >= item.exportQty) {
-                        // Push Export Record
-                        await refs.exports.push({
-                            productName: item.productName,
-                            productCode: item.productCode || '',
-                            unit: item.unit || '',
-                            lotNumber: item.lotNumber,
-                            expiryDate: item.expiryDate,
-                            quantity: item.exportQty,
-                            destination: dest,
-                            exportDate: date,
-                            relatedId: item.relatedId
-                        });
-
-                        // Deduct Stock
-                        await refs.items.child(item.relatedId).update({
-                            quantity: currentQty - item.exportQty
-                        });
+                        await refs.exports.push({ productName: item.productName, productCode: item.productCode || '', unit: item.unit || '', lotNumber: item.lotNumber, expiryDate: item.expiryDate, quantity: item.exportQty, destination: dest, exportDate: date, relatedId: item.relatedId });
+                        await refs.items.child(item.relatedId).update({ quantity: currentQty - item.exportQty });
                         count++;
                     }
                 }
             }
-
             showToast(`Đã xuất thành công ${count} mục!`, 'success');
             document.getElementById('exp-preview-box').style.display = 'none';
             document.getElementById('exp-paste-area').value = '';
@@ -819,6 +743,7 @@
         document.getElementById('master-upload').addEventListener('change', e=>{ const f=e.target.files[0]; const r=new FileReader(); r.onload=evt=>{ const wb=XLSX.read(new Uint8Array(evt.target.result),{type:'array'}); const json=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]); refs.master.push({fileName:f.name, data:json}); showToast('OK','success'); }; r.readAsArrayBuffer(f); });
         function renderMasterFilesList(files){ document.getElementById('master-files-list').innerHTML=files.map(f=>`<div>📄 ${f.fileName} <a href="#" onclick="refs.master.child('${f.id}').remove()" style="color:red">Xóa</a></div>`).join(''); }
         
+        // RESTORED: ondblclick in genReport
         window.genReport=()=>{ 
             const s=new Date(document.getElementById('rpt-start').value), e=new Date(document.getElementById('rpt-end').value); 
             const r={}; 
@@ -826,6 +751,7 @@
                 if(!r[i.productName]) r[i.productName]={name:i.productName, code: i.productCode||'', unit:i.unit||'', in:0, out:0, end:0}; 
                 r[i.productName].end+=parseInt(i.quantity); 
             }); 
+            // Added 'ondblclick' back
             document.getElementById('rpt-body').innerHTML=Object.values(r).map(x=>`<tr ondblclick="handleProductClick('${x.name}')"><td>${x.code}</td><td>${x.name}</td><td>${x.unit}</td><td>-</td><td>${x.in}</td><td>${x.out}</td><td>${x.end}</td></tr>`).join(''); 
         }
 
