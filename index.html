@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản Lý Kho Dược GDP - IDECO (Signed Export)</title>
+    <title>Quản Lý Kho Dược GDP - IDECO (Pro Export)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -58,6 +58,10 @@
         .export-actions { display: flex; gap: 5px; }
 
         .app-footer { background: #f1f5f9; padding: 10px 20px; border-top: 1px solid #e2e8f0; font-size: 0.85rem; color: #64748b; text-align: right; font-style: italic; }
+
+        /* Error row style */
+        .row-error { background-color: #fee2e2 !important; }
+        .row-error td { border-color: #fca5a5; }
     </style>
 </head>
 <body>
@@ -156,7 +160,7 @@
         <div id="tab2" class="tab-content">
             <div class="grid-layout">
                 <div class="card">
-                    <div class="card-header">Phiếu Xuất Kho</div>
+                    <div class="card-header">A. Xuất Kho Thủ Công</div>
                     <label>Tìm sản phẩm xuất:</label>
                     <div class="autocomplete-wrapper">
                         <input type="text" id="exp-name" placeholder="Gõ tên thuốc..." autocomplete="off">
@@ -174,10 +178,56 @@
                 </div>
 
                 <div class="card">
-                    <div class="card-header">Lịch Sử Xuất Kho</div>
-                    <button class="btn btn-success" style="width:100%; margin-bottom:10px" onclick="openSignatureModal()">Xuất Excel Lịch Sử</button>
-                    <div id="export-list" style="overflow-y:auto; flex:1; max-height:500px; border:1px solid #f1f5f9; padding:5px; border-radius:6px;"></div>
+                    <div class="card-header">
+                        B. Xuất Hàng Loạt (Auto FIFO)
+                        <div style="float:right">
+                            <button class="btn btn-primary" onclick="toggleExportMode('paste')">Paste</button>
+                            <button class="btn btn-warning" onclick="toggleExportMode('file')">Excel</button>
+                        </div>
+                    </div>
+                    
+                    <div id="exp-mode-paste">
+                        <p style="font-size:0.85rem; color:#64748b; margin-bottom:5px">Cấu trúc: <b>STT | Mã SP | Tên SP | ĐVT | Số lượng</b></p>
+                        <textarea id="exp-paste-area" style="height:80px; width:100%; border:2px dashed #f59e0b; background:#fffbf0"></textarea>
+                        <button class="btn btn-primary" style="width:100%; margin-top:5px" onclick="processExportPaste()">🔍 Soi Chiếu & Lấy Hàng</button>
+                    </div>
+                    
+                    <div id="exp-mode-file" style="display:none; padding:10px; border:2px dashed #ddd; text-align:center">
+                         <p style="font-size:0.85rem; color:#64748b; margin-bottom:5px">Excel: <b>STT | Mã SP | Tên | ĐVT | Số lượng</b></p>
+                        <input type="file" id="export-file-input" accept=".xlsx, .xls">
+                    </div>
+
+                    <div id="exp-preview-box" style="display:none; flex:1; flex-direction:column; margin-top:15px; border-top:2px solid #f1f5f9; padding-top:10px;">
+                        <div style="margin-bottom:5px">
+                            <label>Nơi nhận chung:</label>
+                            <input type="text" id="bulk-exp-dest" placeholder="Ví dụ: Kho lẻ, Khách A..." style="margin-bottom:5px">
+                            <label>Ngày xuất:</label>
+                            <input type="date" id="bulk-exp-date" style="margin-bottom:5px">
+                        </div>
+                        <div style="overflow-y:auto; flex:1; min-height:200px;">
+                            <table id="exp-preview-table">
+                                <thead>
+                                    <tr>
+                                        <th>Mã SP</th>
+                                        <th>Tên Hàng Hóa</th>
+                                        <th>Lô (Gợi ý)</th>
+                                        <th>Hạn Dùng</th>
+                                        <th style="width:80px">SL Xuất</th>
+                                        <th style="width:50px"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="exp-preview-body"></tbody>
+                            </table>
+                        </div>
+                        <button class="btn btn-danger" style="width:100%; margin-top:10px" onclick="executeBulkExport()">⚡ XÁC NHẬN TRỪ KHO</button>
+                    </div>
                 </div>
+            </div>
+
+            <div class="card" style="margin-top:20px; height:auto">
+                <div class="card-header">Lịch Sử Xuất Kho</div>
+                <button class="btn btn-success" style="width:100%; margin-bottom:10px" onclick="openSignatureModal()">Xuất Excel Lịch Sử</button>
+                <div id="export-list" style="overflow-y:auto; flex:1; max-height:500px; border:1px solid #f1f5f9; padding:5px; border-radius:6px;"></div>
             </div>
 
             <div class="card" style="margin-top:20px; height:auto">
@@ -295,10 +345,13 @@
         };
 
         let stockData=[], exportData=[], masterData=[], previewData=[], currentExportLot=null;
+        let bulkExportPreviewData = []; // Store calculated FIFO export plan
 
         // INIT DATE
-        document.getElementById('imp-date').valueAsDate = new Date();
-        document.getElementById('exp-date').valueAsDate = new Date();
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('imp-date').value = today;
+        document.getElementById('exp-date').value = today;
+        document.getElementById('bulk-exp-date').value = today;
         document.getElementById('rpt-start').valueAsDate = new Date(new Date().getFullYear(), 0, 1);
         document.getElementById('rpt-end').valueAsDate = new Date();
 
@@ -321,7 +374,7 @@
         });
 
         // LOGIC FUNCTIONS
-        function cleanStr(str) { if(!str) return ''; return str.toLowerCase().replace(/^th[_\-\s]+|thuốc\s+/g, '').trim(); }
+        function cleanStr(str) { if(!str) return ''; return str.toString().toLowerCase().replace(/^th[_\-\s]+|thuốc\s+/g, '').trim(); }
         function findColumnValue(row, names) { const keys=Object.keys(row); const lower=keys.map(k=>k.toLowerCase().trim()); for(const n of names) { const idx=lower.indexOf(n.toLowerCase()); if(idx!==-1) return row[keys[idx]]; } return null; }
 
         function refreshMasterData(files) {
@@ -353,7 +406,7 @@
         document.getElementById('imp-name').addEventListener('input', function() { showSuggestions(this, 'name', document.getElementById('imp-suggest'), (m) => { this.value = m.name; document.getElementById('imp-code').value = m.code||''; document.getElementById('imp-unit').value = m.unit||''; }); });
         document.getElementById('imp-name').addEventListener('blur', () => setTimeout(() => document.getElementById('imp-suggest').innerHTML='', 200));
 
-        // TABLE LOGIC
+        // --- IMPORT LOGIC ---
         document.getElementById('import-file').addEventListener('change', e => {
             const f=e.target.files[0]; if(!f) return;
             const r=new FileReader(); r.onload=evt=>{
@@ -432,7 +485,7 @@
             }
         }
 
-        // --- HISTORY FUNCTIONS ---
+        // --- EXPORT HISTORY FUNCTIONS ---
         function renderExportHistory() {
             const div = document.getElementById('export-list'); div.innerHTML = '';
             const list = exportData.sort((a,b)=>new Date(b.exportDate)-new Date(a.exportDate));
@@ -480,11 +533,10 @@
             showToast('Đã cập nhật', 'success');
         }
 
-        // --- NEW: SIGNATURE & EXPORT ---
+        // --- SIGNATURE EXPORT ---
         window.openSignatureModal = () => {
             if(exportData.length === 0) return showToast('Không có dữ liệu để xuất!', 'error');
             document.getElementById('signature-modal').style.display = 'flex';
-            // Reset fields
             document.getElementById('sign-keeper').value = '';
             document.getElementById('sign-manager').value = '';
         }
@@ -497,60 +549,26 @@
                 return alert('Vui lòng nhập đủ tên 2 người chịu trách nhiệm!');
             }
             
-            // Đóng modal
             document.getElementById('signature-modal').style.display = 'none';
-            
-            // Tiến hành xuất Excel với tên
             exportHistoryWithSignatures(keeper, manager);
         }
 
         function exportHistoryWithSignatures(keeper, manager) {
-            // 1. Chuẩn bị dữ liệu Header
             const title = [['BÁO CÁO LỊCH SỬ XUẤT KHO - IDECO']];
             const dateInfo = [[`Ngày xuất báo cáo: ${new Date().toLocaleString('vi-VN')}`], ['']];
             const headers = [['Ngày Xuất', 'Mã SP', 'Tên Hàng Hóa', 'Đơn Vị', 'Số Lô', 'Hạn Dùng', 'Nơi Nhận', 'Số Lượng']];
-            
-            // 2. Chuẩn bị dữ liệu Body
-            const body = exportData.map(e => [
-                e.exportDate,
-                e.productCode || '',
-                e.productName,
-                e.unit || '',
-                e.lotNumber,
-                e.expiryDate,
-                e.destination,
-                e.quantity
-            ]);
-
-            // 3. Chuẩn bị phần Chữ Ký (Footer)
-            const footer = [
-                ['', '', '', '', '', '', '', ''], // Dòng trống
-                ['', '', '', '', '', '', '', ''], // Dòng trống
-                ['NGƯỜI LẬP BẢO CÁO', '', '', '', 'XÁC NHẬN CỦA QUẢN LÝ', '', '', ''], // Tiêu đề ký
-                ['(Phụ trách kho)', '', '', '', '(Quản lý Kế toán/Kho)', '', '', ''], // Chức danh
-                ['', '', '', '', '', '', '', ''], // Khoảng trống ký
-                ['', '', '', '', '', '', '', ''], // Khoảng trống ký
-                [`${keeper}`, '', '', '', `${manager}`, '', '', ''] // Tên người ký
-            ];
-
-            // 4. Gộp tất cả thành 1 mảng dữ liệu lớn
+            const body = exportData.map(e => [e.exportDate,e.productCode || '',e.productName,e.unit || '',e.lotNumber,e.expiryDate,e.destination,e.quantity]);
+            const footer = [['', '', '', '', '', '', '', ''],['', '', '', '', '', '', '', ''],['NGƯỜI LẬP BẢO CÁO', '', '', '', 'XÁC NHẬN CỦA QUẢN LÝ', '', '', ''],['(Phụ trách kho)', '', '', '', '(Quản lý Kế toán/Kho)', '', '', ''],['', '', '', '', '', '', '', ''],['', '', '', '', '', '', '', ''],[`${keeper}`, '', '', '', `${manager}`, '', '', '']];
             const fullData = [...title, ...dateInfo, ...headers, ...body, ...footer];
-
-            // 5. Tạo Sheet và File
             const ws = XLSX.utils.aoa_to_sheet(fullData);
-            
-            // Chỉnh độ rộng cột cho đẹp
             ws['!cols'] = [{wch:15}, {wch:15}, {wch:30}, {wch:10}, {wch:15}, {wch:15}, {wch:20}, {wch:10}];
-            
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "LichSuXuat");
             XLSX.writeFile(wb, `LichSuXuat_Signed_${new Date().toISOString().slice(0,10)}.xlsx`);
-            
             showToast('Đã xuất file kèm chữ ký!', 'success');
         }
 
-
-        // --- EXPORT AUTOCOMPLETE ---
+        // --- MANUAL EXPORT ---
         document.getElementById('exp-name').addEventListener('input', function(){
             const v=cleanStr(this.value); const l=document.getElementById('exp-suggest'); l.innerHTML=''; if(!v)return;
             const m=stockData.filter(d=>parseInt(d.quantity)>0 && cleanStr(d.productName).includes(v));
@@ -574,42 +592,220 @@
         window.confirmExport = async () => {
             const q = parseInt(document.getElementById('exp-qty').value);
             if(!currentExportLot) return;
-
             const currentStock = parseInt(currentExportLot.quantity);
-            if(q > currentStock) {
-                showToast(`Xuất kho vượt quá tồn kho! (Tồn: ${currentStock})`, 'error');
-                return;
-            }
-            if(q <= 0) {
-                showToast(`Số lượng xuất không hợp lệ!`, 'error');
-                return;
-            }
+            if(q > currentStock) { showToast(`Xuất kho vượt quá tồn kho! (Tồn: ${currentStock})`, 'error'); return; }
+            if(q <= 0) { showToast(`Số lượng xuất không hợp lệ!`, 'error'); return; }
 
             await refs.exports.push({productName:currentExportLot.productName, productCode: currentExportLot.productCode, unit: currentExportLot.unit, lotNumber: currentExportLot.lotNumber, expiryDate: currentExportLot.expiryDate, quantity:q, destination:document.getElementById('exp-dest').value, exportDate:document.getElementById('exp-date').value, relatedId:currentExportLot.id});
             await refs.items.child(currentExportLot.id).update({quantity:currentStock - q});
             showToast('Xuất OK','success'); document.getElementById('lot-list').innerHTML=''; document.getElementById('exp-qty').value=''; document.getElementById('btn-export').disabled=true;
         }
 
+        // ============================================================
+        // === NEW: BULK EXPORT LOGIC (FIFO) ==========================
+        // ============================================================
+        
+        window.toggleExportMode = (m) => {
+            document.getElementById('exp-mode-paste').style.display = m==='paste'?'block':'none';
+            document.getElementById('exp-mode-file').style.display = m==='file'?'block':'none';
+        }
+
+        document.getElementById('export-file-input').addEventListener('change', e => {
+            const f=e.target.files[0]; if(!f) return;
+            const r=new FileReader(); 
+            r.onload=evt=>{
+                const wb=XLSX.read(new Uint8Array(evt.target.result), {type:'array'});
+                const ws=wb.Sheets[wb.SheetNames[0]];
+                const rows=XLSX.utils.sheet_to_json(ws, {header: 1});
+                if(!rows || rows.length===0) return;
+                // STT | Mã SP | Tên | ĐVT | SL
+                let data = [];
+                // Skip header if first row has text like 'Mã'
+                const startIdx = rows[0].join('').toLowerCase().includes('mã') ? 1 : 0;
+                for(let i=startIdx; i<rows.length; i++){
+                    const r = rows[i];
+                    if(r[1] || r[2]) { // Must have Code or Name
+                        data.push({ code: r[1], name: r[2], unit: r[3], qty: r[4] });
+                    }
+                }
+                processBulkExportInput(data);
+            }; 
+            r.readAsArrayBuffer(f);
+        });
+
+        window.processExportPaste = () => {
+            const txt = document.getElementById('exp-paste-area').value; 
+            if(!txt) return; 
+            const rows = txt.trim().split('\n').map(r=>r.split('\t')); 
+            // Expect: STT | Code | Name | Unit | Qty (Indices: 0, 1, 2, 3, 4)
+            const data = rows.map(c => ({ code:c[1], name:c[2], unit:c[3], qty:c[4] }));
+            processBulkExportInput(data);
+        }
+
+        function processBulkExportInput(inputData) {
+            bulkExportPreviewData = []; // Reset preview
+            
+            inputData.forEach((req) => {
+                let reqQty = parseInt(req.qty);
+                if (!reqQty || reqQty <= 0) return;
+
+                // 1. Find matching stock items (By Code first, then Name)
+                let matches = [];
+                const searchCode = cleanStr(req.code);
+                const searchName = cleanStr(req.name);
+
+                if (searchCode) {
+                    matches = stockData.filter(s => cleanStr(s.productCode) === searchCode && parseInt(s.quantity) > 0);
+                }
+                // If no code match, try name
+                if (matches.length === 0 && searchName) {
+                    matches = stockData.filter(s => cleanStr(s.productName) === searchName && parseInt(s.quantity) > 0);
+                }
+
+                // 2. Sort Matches by Expiry Date (Ascending - FIFO)
+                matches.sort((a,b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+
+                // 3. Check Total Stock
+                const totalStock = matches.reduce((sum, item) => sum + parseInt(item.quantity), 0);
+
+                if (reqQty > totalStock) {
+                    // Not enough stock -> Add Error Row
+                    bulkExportPreviewData.push({
+                        isError: true,
+                        productCode: req.code || '?',
+                        productName: req.name || 'Sản phẩm chưa xác định',
+                        reqQty: reqQty,
+                        totalStock: totalStock,
+                        msg: `Thiếu hàng! (Cần: ${reqQty}, Có: ${totalStock})`
+                    });
+                } else {
+                    // Enough stock -> Distribute (FIFO)
+                    for (let batch of matches) {
+                        if (reqQty <= 0) break;
+                        
+                        let available = parseInt(batch.quantity);
+                        let take = Math.min(available, reqQty);
+
+                        bulkExportPreviewData.push({
+                            isError: false,
+                            relatedId: batch.id, // Important: to update firebase later
+                            productCode: batch.productCode,
+                            productName: batch.productName,
+                            unit: batch.unit,
+                            lotNumber: batch.lotNumber,
+                            expiryDate: batch.expiryDate,
+                            exportQty: take,
+                            originalStock: available
+                        });
+
+                        reqQty -= take;
+                    }
+                }
+            });
+
+            renderBulkExportPreview();
+            document.getElementById('exp-preview-box').style.display = 'flex';
+        }
+
+        function renderBulkExportPreview() {
+            const tb = document.getElementById('exp-preview-body'); 
+            tb.innerHTML = '';
+            
+            if(bulkExportPreviewData.length === 0) {
+                tb.innerHTML = '<tr><td colspan="6" style="text-align:center">Không tìm thấy dữ liệu hợp lệ.</td></tr>';
+                return;
+            }
+
+            bulkExportPreviewData.forEach((d, i) => {
+                const tr = document.createElement('tr');
+                if (d.isError) {
+                    tr.className = 'row-error';
+                    tr.innerHTML = `
+                        <td>${d.productCode}</td>
+                        <td>${d.productName}</td>
+                        <td colspan="3" style="color:#b91c1c; font-weight:bold">${d.msg}</td>
+                        <td><button class="btn btn-danger" style="padding:2px 5px" onclick="removeBulkItem(${i})">X</button></td>
+                    `;
+                } else {
+                    tr.innerHTML = `
+                        <td>${d.productCode}</td>
+                        <td><b>${d.productName}</b></td>
+                        <td>${d.lotNumber} <small style="color:#666">(Tồn: ${d.originalStock})</small></td>
+                        <td>${d.expiryDate}</td>
+                        <td style="font-weight:bold; color:var(--primary); text-align:center">${d.exportQty}</td>
+                        <td><button class="btn btn-danger" style="padding:2px 5px" onclick="removeBulkItem(${i})">X</button></td>
+                    `;
+                }
+                tb.appendChild(tr);
+            });
+        }
+
+        window.removeBulkItem = (i) => {
+            bulkExportPreviewData.splice(i, 1);
+            renderBulkExportPreview();
+        }
+
+        window.executeBulkExport = async () => {
+            // Check if errors exist
+            if (bulkExportPreviewData.some(d => d.isError)) {
+                return alert('Vui lòng loại bỏ các dòng lỗi (màu đỏ) trước khi xuất kho!');
+            }
+            if (bulkExportPreviewData.length === 0) return;
+
+            if (!confirm(`Bạn có chắc chắn xuất ${bulkExportPreviewData.length} mục không? Kho sẽ bị trừ ngay lập tức.`)) return;
+
+            const dest = document.getElementById('bulk-exp-dest').value || 'Khách lẻ/Không xác định';
+            const date = document.getElementById('bulk-exp-date').value;
+
+            let count = 0;
+            for (let item of bulkExportPreviewData) {
+                // 1. Get current stock from DB to be safe (Concurrency check simplified)
+                // Since this is a simple app, we trust stockData from listener but verify logic
+                const stockItem = stockData.find(s => s.id === item.relatedId);
+                
+                if (stockItem) {
+                    const currentQty = parseInt(stockItem.quantity);
+                    if (currentQty >= item.exportQty) {
+                        // Push Export Record
+                        await refs.exports.push({
+                            productName: item.productName,
+                            productCode: item.productCode || '',
+                            unit: item.unit || '',
+                            lotNumber: item.lotNumber,
+                            expiryDate: item.expiryDate,
+                            quantity: item.exportQty,
+                            destination: dest,
+                            exportDate: date,
+                            relatedId: item.relatedId
+                        });
+
+                        // Deduct Stock
+                        await refs.items.child(item.relatedId).update({
+                            quantity: currentQty - item.exportQty
+                        });
+                        count++;
+                    }
+                }
+            }
+
+            showToast(`Đã xuất thành công ${count} mục!`, 'success');
+            document.getElementById('exp-preview-box').style.display = 'none';
+            document.getElementById('exp-paste-area').value = '';
+            document.getElementById('export-file-input').value = '';
+            bulkExportPreviewData = [];
+        }
+
         // --- SECURITY DELETE ---
         window.requestDeleteAll = () => { document.getElementById('delete-security-modal').style.display='flex'; }
-        
         window.confirmDeleteAll = async () => {
             const name = document.getElementById('del-user-name').value;
             const pass = document.getElementById('del-password').value;
             if(pass !== 'ideco2025') return showToast('Mật khẩu sai!', 'error');
             if(!name) return showToast('Vui lòng nhập tên!', 'error');
-
             if(confirm('CẢNH BÁO CUỐI CÙNG: Bạn có chắc chắn xóa vĩnh viễn không?')) {
-                await refs.items.remove(); 
-                await refs.exports.remove(); 
-                
-                await refs.logs.set({
-                    lastDeletedBy: name,
-                    deletedAt: new Date().toISOString()
-                });
-
-                document.getElementById('delete-security-modal').style.display='none';
-                showToast('Đã xóa toàn bộ dữ liệu hệ thống!', 'success');
+                await refs.items.remove(); await refs.exports.remove(); 
+                await refs.logs.set({ lastDeletedBy: name, deletedAt: new Date().toISOString() });
+                document.getElementById('delete-security-modal').style.display='none'; showToast('Đã xóa toàn bộ dữ liệu hệ thống!', 'success');
             }
         }
 
@@ -637,7 +833,6 @@
         window.toggleMode=(m)=>{ document.getElementById('mode-paste').style.display=m==='paste'?'block':'none'; document.getElementById('mode-file').style.display=m==='file'?'block':'none'; }
         window.toggleMasterSection=()=>{ const el=document.getElementById('master-section'); el.style.display=el.style.display==='none'?'block':'none'; }
         window.showToast=(m,t)=>{ const el=document.getElementById('toast'); el.innerText=m; el.style.background=t==='error'?'#ef4444':'#10b981'; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),3000); }
-        window.deleteAllStock=()=>{ if(confirm('Xóa hết?')) refs.items.remove(); }
     </script>
 </body>
 </html>
