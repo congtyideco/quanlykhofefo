@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản Lý Kho Dược GDP - IDECO (Full Features)</title>
+    <title>Quản Lý Kho Dược GDP - IDECO (Updated)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -28,7 +28,7 @@
         @media(max-width:1000px) { .grid-layout { grid-template-columns: 1fr; } }
         
         .card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); height: 100%; display: flex; flex-direction: column; }
-        .card-header { font-size: 1.1rem; font-weight: 700; color: var(--primary); margin-bottom: 15px; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; }
+        .card-header { font-size: 1.1rem; font-weight: 700; color: var(--primary); margin-bottom: 15px; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
         
         input, select, textarea { width: 100%; padding: 8px 12px; margin: 5px 0 15px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; transition: border 0.3s; }
         input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
@@ -36,6 +36,7 @@
         
         .btn { padding: 6px 12px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; color: white; transition: 0.2s; font-size: 0.85rem; }
         .btn:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-success { background: var(--success); } .btn-primary { background: var(--primary); } .btn-danger { background: var(--danger); } .btn-warning { background: var(--warning); }
         
         .autocomplete-wrapper { position: relative; width: 100%; }
@@ -62,6 +63,24 @@
         /* Error row style for Bulk Export */
         .row-error { background-color: #fee2e2 !important; }
         .row-error td { border-color: #fca5a5; }
+
+        /* Lot selection style */
+        .lot-selector {
+            padding: 10px;
+            border: 1px solid #e2e8f0;
+            margin: 5px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .lot-selector:hover { background-color: #f1f5f9; border-color: var(--primary); }
+        .lot-selector.active { background-color: #eff6ff; border: 2px solid var(--primary); }
+        .lot-selector-btn {
+            background: var(--primary); color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 0.8rem;
+        }
     </style>
 </head>
 <body>
@@ -113,8 +132,8 @@
 
                 <div class="card">
                     <div class="card-header">
-                        B. Nhập Hàng Loạt
-                        <div style="float:right">
+                        <div>B. Nhập Hàng Loạt</div>
+                        <div style="display:flex; gap:5px;">
                             <button class="btn btn-primary" onclick="toggleMode('paste')">Paste</button>
                             <button class="btn btn-warning" onclick="toggleMode('file')">Excel</button>
                         </div>
@@ -142,7 +161,10 @@
             <div class="card" style="margin-top:20px; height:auto">
                 <div class="card-header">
                     Danh Sách Tồn Kho
-                    <button class="btn btn-danger" style="float:right;" onclick="requestDeleteAll()">⚠️ Xóa Tất Cả</button>
+                    <div>
+                        <button class="btn btn-success" onclick="exportStockExcel()">Excel Tồn Kho</button>
+                        <button class="btn btn-danger" onclick="requestDeleteAll()">⚠️ Xóa Tất Cả</button>
+                    </div>
                 </div>
                 <div style="display:flex; gap:10px; margin-bottom:10px">
                     <input type="text" id="search-stock" placeholder="Tìm kiếm..." style="flex:2">
@@ -166,21 +188,32 @@
                         <input type="text" id="exp-name" placeholder="Gõ tên thuốc..." autocomplete="off">
                         <div id="exp-suggest" class="autocomplete-items"></div>
                     </div>
-                    <div id="lot-list" style="margin-top:10px; min-height:50px"></div>
-                    <hr>
+                    
+                    <div id="lot-list" style="margin-top:10px; min-height:50px; flex:1; overflow-y:auto; max-height:300px; border:1px dashed #cbd5e1; padding:5px; border-radius:6px; background:#f8fafc">
+                        <div style="text-align:center; color:#999; padding:10px; font-size:0.85rem">
+                            Vui lòng chọn sản phẩm để xem danh sách lô.
+                        </div>
+                    </div>
+                    
+                    <hr style="margin:10px 0">
+                    <div style="background:#fffbeb; padding:10px; border-radius:6px; margin-bottom:10px; border:1px solid #fcd34d">
+                         <div style="font-weight:bold; font-size:0.9rem; margin-bottom:5px; color:#92400e">Đang chọn xuất:</div>
+                         <div id="selected-lot-info" style="font-size:0.85rem; color:#b45309">Chưa chọn lô nào...</div>
+                    </div>
+
                     <div style="display:flex; gap:10px">
                          <input type="number" id="exp-qty" placeholder="SL Xuất" disabled style="flex:1">
                          <input type="text" id="exp-unit" placeholder="Đơn vị" readonly style="flex:1; background:#eee">
                     </div>
-                    <input type="text" id="exp-dest" placeholder="Nơi nhận">
+                    <input type="text" id="exp-dest" placeholder="Nơi nhận (Khách hàng/Kho...)">
                     <input type="date" id="exp-date">
                     <button class="btn btn-warning" id="btn-export" style="width:100%" disabled onclick="confirmExport()">XÁC NHẬN XUẤT</button>
                 </div>
 
                 <div class="card">
                     <div class="card-header">
-                        B. Xuất Hàng Loạt (Auto FIFO)
-                        <div style="float:right">
+                        <div>B. Xuất Hàng Loạt (Auto FIFO)</div>
+                        <div style="display:flex; gap:5px;">
                             <button class="btn btn-primary" onclick="toggleExportMode('paste')">Paste</button>
                             <button class="btn btn-warning" onclick="toggleExportMode('file')">Excel</button>
                         </div>
@@ -232,6 +265,12 @@
 
             <div class="card" style="margin-top:20px; height:auto">
                 <div class="card-header">Báo Cáo Nhập Xuất Tồn <small style="font-weight:normal; color:#666">(Nhấp đúp vào dòng để xuất)</small></div>
+                
+                <div class="autocomplete-wrapper" style="margin-bottom:10px;">
+                    <input type="text" id="rpt-search-input" placeholder="🔍 Gõ tên thuốc để tìm nhanh trong báo cáo..." autocomplete="off">
+                    <div id="rpt-search-suggest" class="autocomplete-items"></div>
+                </div>
+
                 <div style="display:flex; gap:10px">
                     <input type="date" id="rpt-start">
                     <input type="date" id="rpt-end">
@@ -309,13 +348,10 @@
         <div style="background:white; padding:25px; border-radius:12px; width:90%; max-width:400px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
             <h3 style="color:var(--primary); margin-top:0; border-bottom:1px solid #eee; padding-bottom:10px;">🖨️ XÁC NHẬN IN BÁO CÁO</h3>
             <p style="color:#666; font-size:0.9rem; margin-bottom:15px">Vui lòng nhập tên người chịu trách nhiệm để lưu vào file.</p>
-            
             <label>1. Phụ Trách Kho (*)</label>
             <input type="text" id="sign-keeper" placeholder="Ví dụ: Nguyễn Văn A">
-            
             <label>2. Quản Lý Kế Toán/Kho (*)</label>
             <input type="text" id="sign-manager" placeholder="Ví dụ: Trần Thị B">
-            
             <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px">
                 <button class="btn btn-primary" onclick="processExportWithSignature()">XUẤT FILE EXCEL</button>
                 <button class="btn btn-light" onclick="document.getElementById('signature-modal').style.display='none'" style="border:1px solid #ccc; color:#333">Hủy</button>
@@ -485,6 +521,36 @@
             }
         }
 
+        // --- NEW FEATURE: EXPORT STOCK EXCEL (TAB 1) ---
+        window.exportStockExcel = () => {
+            if(stockData.length === 0) return showToast('Không có dữ liệu tồn kho!', 'error');
+            
+            const headers = [['DANH SÁCH CHI TIẾT TỒN KHO - IDECO']];
+            const dateRow = [[`Ngày xuất: ${new Date().toLocaleString('vi-VN')}`]];
+            const cols = [['STT', 'Mã Sản Phẩm', 'Tên Hàng Hóa', 'Đơn Vị', 'Số Lô', 'Hạn Dùng', 'Số Lượng Tồn']];
+            
+            const body = stockData.map((d, i) => [
+                i + 1,
+                d.productCode || '',
+                d.productName,
+                d.unit || '',
+                d.lotNumber,
+                d.expiryDate,
+                parseInt(d.quantity)
+            ]);
+
+            const fullData = [...headers, [''], ...dateRow, [''], ...cols, ...body];
+            const ws = XLSX.utils.aoa_to_sheet(fullData);
+            
+            // Set col widths
+            ws['!cols'] = [{wch:5}, {wch:15}, {wch:35}, {wch:10}, {wch:15}, {wch:15}, {wch:15}];
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "TonKho");
+            XLSX.writeFile(wb, `TonKho_IDECO_${today}.xlsx`);
+            showToast('Đã tải xuống file Excel!', 'success');
+        }
+
         // --- EXPORT HISTORY FUNCTIONS ---
         function renderExportHistory() {
             const div = document.getElementById('export-list'); div.innerHTML = '';
@@ -564,7 +630,7 @@
             showToast('Đã xuất file kèm chữ ký!', 'success');
         }
 
-        // --- MANUAL EXPORT & DOUBLE CLICK LOGIC ---
+        // --- MANUAL EXPORT & SELECTION LOGIC ---
         document.getElementById('exp-name').addEventListener('input', function(){
             const v=cleanStr(this.value); const l=document.getElementById('exp-suggest'); l.innerHTML=''; if(!v)return;
             const m=stockData.filter(d=>parseInt(d.quantity)>0 && cleanStr(d.productName).includes(v));
@@ -574,7 +640,7 @@
         });
         document.getElementById('exp-name').addEventListener('blur', ()=>setTimeout(()=>document.getElementById('exp-suggest').innerHTML='',200));
 
-        // RESTORED: Handle Product Click from Report Table
+        // UPDATED: Handle Product Click to show selectable lots
         window.handleProductClick = function(name) {
             // 1. Switch to Tab 2
             document.getElementById('btn-tab2').click(); 
@@ -584,29 +650,167 @@
             document.getElementById('exp-name').value=name;
             const l=document.getElementById('lot-list'); l.innerHTML='';
             
-            // 3. Find lots
-            stockData.filter(d=>d.productName===name && parseInt(d.quantity)>0).sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate)).forEach((lot,i)=>{
-                const el=document.createElement('div'); el.style.padding='10px'; el.style.border=i===0?'2px solid green':'1px solid #ddd'; el.style.margin='5px 0';
-                el.innerHTML=`Mã: <b>${lot.productCode||'--'}</b> | Lô: <b>${lot.lotNumber}</b> | Hạn: ${lot.expiryDate} | SL: ${lot.quantity}`;
-                el.onclick=()=>{ currentExportLot=lot; document.getElementById('exp-qty').disabled=false; document.getElementById('exp-qty').max=lot.quantity; document.getElementById('exp-unit').value=lot.unit||''; document.getElementById('btn-export').disabled=false; };
+            // Reset selection
+            currentExportLot = null;
+            document.getElementById('selected-lot-info').innerText = 'Chưa chọn lô nào...';
+            document.getElementById('exp-qty').disabled=true;
+            document.getElementById('btn-export').disabled=true;
+            document.getElementById('exp-qty').value='';
+
+            // 3. Find lots and render clickable items
+            const matches = stockData.filter(d=>d.productName===name && parseInt(d.quantity)>0).sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate));
+            
+            if(matches.length === 0) {
+                l.innerHTML = '<div style="padding:10px; color:red">Hết hàng!</div>';
+                return;
+            }
+
+            matches.forEach((lot,i)=>{
+                const el=document.createElement('div'); 
+                el.className = 'lot-selector';
+                el.innerHTML=`
+                    <div>
+                        <div style="font-weight:bold">${lot.productCode||'--'} | Lô: ${lot.lotNumber}</div>
+                        <div style="font-size:0.85rem">Hạn: ${lot.expiryDate} | Tồn: <b style="color:var(--primary)">${lot.quantity}</b></div>
+                    </div>
+                    <button class="lot-selector-btn">CHỌN</button>
+                `;
+                el.onclick=()=>{ 
+                    // Set active visual
+                    document.querySelectorAll('.lot-selector').forEach(d=>d.classList.remove('active'));
+                    el.classList.add('active');
+                    
+                    // Set Logic
+                    currentExportLot=lot; 
+                    document.getElementById('selected-lot-info').innerHTML = `<b>${lot.productName}</b> - Lô: ${lot.lotNumber} (Hạn: ${lot.expiryDate}) - Tồn: ${lot.quantity}`;
+                    document.getElementById('exp-qty').disabled=false; 
+                    document.getElementById('exp-qty').max=lot.quantity; 
+                    document.getElementById('exp-unit').value=lot.unit||''; 
+                    document.getElementById('btn-export').disabled=false; 
+                    document.getElementById('exp-qty').focus();
+                };
                 l.appendChild(el);
             });
         }
         
+        // BUG FIX: Double Submission Fix added here
         window.confirmExport = async () => {
-            const q = parseInt(document.getElementById('exp-qty').value);
-            if(!currentExportLot) return;
-            const currentStock = parseInt(currentExportLot.quantity);
-            if(q > currentStock) { showToast(`Xuất kho vượt quá tồn kho! (Tồn: ${currentStock})`, 'error'); return; }
-            if(q <= 0) { showToast(`Số lượng xuất không hợp lệ!`, 'error'); return; }
+            const btn = document.getElementById('btn-export');
+            
+            // 1. DISABLE BUTTON IMMEDIATELY TO PREVENT DOUBLE CLICK
+            btn.disabled = true;
 
-            await refs.exports.push({productName:currentExportLot.productName, productCode: currentExportLot.productCode, unit: currentExportLot.unit, lotNumber: currentExportLot.lotNumber, expiryDate: currentExportLot.expiryDate, quantity:q, destination:document.getElementById('exp-dest').value, exportDate:document.getElementById('exp-date').value, relatedId:currentExportLot.id});
-            await refs.items.child(currentExportLot.id).update({quantity:currentStock - q});
-            showToast('Xuất OK','success'); document.getElementById('lot-list').innerHTML=''; document.getElementById('exp-qty').value=''; document.getElementById('btn-export').disabled=true;
+            try {
+                const q = parseInt(document.getElementById('exp-qty').value);
+                if(!currentExportLot) {
+                    showToast('Chưa chọn lô hàng!', 'error');
+                    return; // disabled remains true, but user has to re-select anyway
+                }
+                const currentStock = parseInt(currentExportLot.quantity);
+                if(q > currentStock) { 
+                    showToast(`Xuất kho vượt quá tồn kho! (Tồn: ${currentStock})`, 'error'); 
+                    btn.disabled = false; // Re-enable if error
+                    return; 
+                }
+                if(q <= 0 || isNaN(q)) { 
+                    showToast(`Số lượng xuất không hợp lệ!`, 'error'); 
+                    btn.disabled = false; // Re-enable if error
+                    return; 
+                }
+
+                await refs.exports.push({
+                    productName:currentExportLot.productName, 
+                    productCode: currentExportLot.productCode, 
+                    unit: currentExportLot.unit, 
+                    lotNumber: currentExportLot.lotNumber, 
+                    expiryDate: currentExportLot.expiryDate, 
+                    quantity:q, 
+                    destination:document.getElementById('exp-dest').value, 
+                    exportDate:document.getElementById('exp-date').value, 
+                    relatedId:currentExportLot.id
+                });
+                
+                await refs.items.child(currentExportLot.id).update({quantity:currentStock - q});
+                
+                showToast('Xuất OK','success'); 
+                
+                // Reset UI
+                document.getElementById('lot-list').innerHTML='<div style="text-align:center; color:#999; padding:10px; font-size:0.85rem">Đã xuất xong. Vui lòng chọn lại.</div>'; 
+                document.getElementById('selected-lot-info').innerText = 'Chưa chọn lô nào...';
+                document.getElementById('exp-name').value='';
+                document.getElementById('exp-qty').value=''; 
+                currentExportLot = null;
+                // Button remains disabled because selection is cleared
+            } catch (err) {
+                console.error(err);
+                showToast('Lỗi hệ thống!', 'error');
+                btn.disabled = false;
+            }
         }
 
         // ============================================================
-        // === NEW: BULK EXPORT LOGIC (FIFO) ==========================
+        // === NEW: REPORT SEARCH FEATURE & FILTER ====================
+        // ============================================================
+        
+        // Add listener for Report Search Input
+        document.getElementById('rpt-search-input').addEventListener('input', function() {
+            const val = cleanStr(this.value);
+            const container = document.getElementById('rpt-search-suggest');
+            container.innerHTML = '';
+            
+            // If empty, re-generate full report
+            if(!val) { 
+                genReport(); 
+                return; 
+            }
+
+            // Show suggestions from Stock Data
+            const matches = [...new Set(stockData.map(s => s.productName))]
+                .filter(name => cleanStr(name).includes(val))
+                .slice(0, 5);
+
+            matches.forEach(name => {
+                const div = document.createElement('div'); 
+                div.className = 'autocomplete-item'; 
+                div.innerText = name; 
+                div.onmousedown = (e) => { 
+                    e.preventDefault(); 
+                    this.value = name; 
+                    container.innerHTML = ''; 
+                    genReport(name); // Pass name to filter
+                }; 
+                container.appendChild(div);
+            });
+            
+            // Also live filter the report table if user doesn't click suggestion
+            genReport(val);
+        });
+
+        // Hide suggestion on blur
+        document.getElementById('rpt-search-input').addEventListener('blur', ()=>setTimeout(()=>document.getElementById('rpt-search-suggest').innerHTML='',200));
+
+        // Updated genReport to accept filter
+        window.genReport = (filterTerm = '') => { 
+            const s=new Date(document.getElementById('rpt-start').value), e=new Date(document.getElementById('rpt-end').value); 
+            const r={}; 
+            const cleanFilter = cleanStr(filterTerm);
+
+            stockData.forEach(i=>{ 
+                // Filter Logic
+                if(cleanFilter && !cleanStr(i.productName).includes(cleanFilter)) return;
+
+                if(!r[i.productName]) r[i.productName]={name:i.productName, code: i.productCode||'', unit:i.unit||'', in:0, out:0, end:0}; 
+                r[i.productName].end+=parseInt(i.quantity); 
+            }); 
+            
+            const tbody = document.getElementById('rpt-body');
+            tbody.innerHTML=Object.values(r).map(x=>`<tr style="cursor:pointer" title="Double click để xuất" ondblclick="handleProductClick('${x.name}')"><td>${x.code}</td><td><b>${x.name}</b></td><td>${x.unit}</td><td>-</td><td>${x.in}</td><td>${x.out}</td><td>${x.end}</td></tr>`).join(''); 
+            
+            if(Object.keys(r).length === 0) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center">Không tìm thấy dữ liệu phù hợp</td></tr>';
+        }
+
+        // ============================================================
+        // === BULK EXPORT LOGIC (Keep original logic) ================
         // ============================================================
         
         window.toggleExportMode = (m) => {
@@ -743,18 +947,6 @@
         document.getElementById('master-upload').addEventListener('change', e=>{ const f=e.target.files[0]; const r=new FileReader(); r.onload=evt=>{ const wb=XLSX.read(new Uint8Array(evt.target.result),{type:'array'}); const json=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]); refs.master.push({fileName:f.name, data:json}); showToast('OK','success'); }; r.readAsArrayBuffer(f); });
         function renderMasterFilesList(files){ document.getElementById('master-files-list').innerHTML=files.map(f=>`<div>📄 ${f.fileName} <a href="#" onclick="refs.master.child('${f.id}').remove()" style="color:red">Xóa</a></div>`).join(''); }
         
-        // RESTORED: ondblclick in genReport
-        window.genReport=()=>{ 
-            const s=new Date(document.getElementById('rpt-start').value), e=new Date(document.getElementById('rpt-end').value); 
-            const r={}; 
-            stockData.forEach(i=>{ 
-                if(!r[i.productName]) r[i.productName]={name:i.productName, code: i.productCode||'', unit:i.unit||'', in:0, out:0, end:0}; 
-                r[i.productName].end+=parseInt(i.quantity); 
-            }); 
-            // Added 'ondblclick' back
-            document.getElementById('rpt-body').innerHTML=Object.values(r).map(x=>`<tr ondblclick="handleProductClick('${x.name}')"><td>${x.code}</td><td>${x.name}</td><td>${x.unit}</td><td>-</td><td>${x.in}</td><td>${x.out}</td><td>${x.end}</td></tr>`).join(''); 
-        }
-
         window.switchTab=(id,el)=>{ document.querySelectorAll('.tab-content').forEach(d=>d.style.display='none'); document.getElementById(id).style.display='block'; document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); }
         window.toggleMode=(m)=>{ document.getElementById('mode-paste').style.display=m==='paste'?'block':'none'; document.getElementById('mode-file').style.display=m==='file'?'block':'none'; }
         window.toggleMasterSection=()=>{ const el=document.getElementById('master-section'); el.style.display=el.style.display==='none'?'block':'none'; }
