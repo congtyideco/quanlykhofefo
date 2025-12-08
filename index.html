@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản Lý Kho Dược GDP - IDECO (Updated)</title>
+    <title>Quản Lý Kho Dược GDP - IDECO (Updated with ERP Check)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -257,6 +257,35 @@
                 </div>
             </div>
 
+            <div class="card" style="margin-top:20px; height:auto; border:1px solid #7c3aed;">
+                <div class="card-header" style="color:#7c3aed; border-bottom-color:#ddd6fe;">
+                    C. Kiểm Tra Chênh Lệch Kho ERP
+                </div>
+                <div style="padding:10px; background:#f5f3ff; border-radius:6px; margin-bottom:10px;">
+                    <p style="font-size:0.9rem; margin-bottom:5px;">
+                        Tải file <b>Báo cáo N-X-T</b> (Excel) để so sánh. Hệ thống sẽ liệt kê các mã có <b style="color:#d97706">Tồn App > Tồn Excel</b>.
+                    </p>
+                    <input type="file" id="erp-file-upload" accept=".xlsx, .xls" style="background:white;">
+                    <button class="btn" style="background:#7c3aed; color:white; width:100%" onclick="processERPCheck()">🔍 PHÂN TÍCH KIỂM KHO</button>
+                </div>
+                
+                <div id="erp-result-box" style="display:none; margin-top:10px; overflow-x:auto;">
+                    <div style="font-weight:bold; margin-bottom:5px; color:#b91c1c;">DANH SÁCH LỆCH (APP DƯ HƠN ERP):</div>
+                    <table id="erp-diff-table">
+                        <thead>
+                            <tr style="background:#fef2f2; color:#b91c1c;">
+                                <th>Mã SP</th>
+                                <th>Tên Hàng Hóa</th>
+                                <th>Tồn App</th>
+                                <th>Tồn ERP</th>
+                                <th>Lệch</th>
+                            </tr>
+                        </thead>
+                        <tbody id="erp-diff-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
             <div class="card" style="margin-top:20px; height:auto">
                 <div class="card-header">Lịch Sử Xuất Kho</div>
                 <button class="btn btn-success" style="width:100%; margin-bottom:10px" onclick="openSignatureModal()">Xuất Excel Lịch Sử</button>
@@ -411,6 +440,7 @@
 
         // LOGIC FUNCTIONS
         function cleanStr(str) { if(!str) return ''; return str.toString().toLowerCase().replace(/^th[_\-\s]+|thuốc\s+/g, '').trim(); }
+        function cleanCode(str) { if(!str) return ''; return str.toString().trim().toLowerCase(); }
         function findColumnValue(row, names) { const keys=Object.keys(row); const lower=keys.map(k=>k.toLowerCase().trim()); for(const n of names) { const idx=lower.indexOf(n.toLowerCase()); if(idx!==-1) return row[keys[idx]]; } return null; }
 
         function refreshMasterData(files) {
@@ -521,30 +551,16 @@
             }
         }
 
-        // --- NEW FEATURE: EXPORT STOCK EXCEL (TAB 1) ---
+        // --- EXPORT STOCK EXCEL ---
         window.exportStockExcel = () => {
             if(stockData.length === 0) return showToast('Không có dữ liệu tồn kho!', 'error');
-            
             const headers = [['DANH SÁCH CHI TIẾT TỒN KHO - IDECO']];
             const dateRow = [[`Ngày xuất: ${new Date().toLocaleString('vi-VN')}`]];
             const cols = [['STT', 'Mã Sản Phẩm', 'Tên Hàng Hóa', 'Đơn Vị', 'Số Lô', 'Hạn Dùng', 'Số Lượng Tồn']];
-            
-            const body = stockData.map((d, i) => [
-                i + 1,
-                d.productCode || '',
-                d.productName,
-                d.unit || '',
-                d.lotNumber,
-                d.expiryDate,
-                parseInt(d.quantity)
-            ]);
-
+            const body = stockData.map((d, i) => [i + 1, d.productCode || '', d.productName, d.unit || '', d.lotNumber, d.expiryDate, parseInt(d.quantity)]);
             const fullData = [...headers, [''], ...dateRow, [''], ...cols, ...body];
             const ws = XLSX.utils.aoa_to_sheet(fullData);
-            
-            // Set col widths
             ws['!cols'] = [{wch:5}, {wch:15}, {wch:35}, {wch:10}, {wch:15}, {wch:15}, {wch:15}];
-
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "TonKho");
             XLSX.writeFile(wb, `TonKho_IDECO_${today}.xlsx`);
@@ -640,47 +656,27 @@
         });
         document.getElementById('exp-name').addEventListener('blur', ()=>setTimeout(()=>document.getElementById('exp-suggest').innerHTML='',200));
 
-        // UPDATED: Handle Product Click to show selectable lots
         window.handleProductClick = function(name) {
-            // 1. Switch to Tab 2
             document.getElementById('btn-tab2').click(); 
             window.scrollTo({top:0,behavior:'smooth'}); 
-            
-            // 2. Fill input and load lots
             document.getElementById('exp-name').value=name;
             const l=document.getElementById('lot-list'); l.innerHTML='';
-            
-            // Reset selection
             currentExportLot = null;
             document.getElementById('selected-lot-info').innerText = 'Chưa chọn lô nào...';
             document.getElementById('exp-qty').disabled=true;
             document.getElementById('btn-export').disabled=true;
             document.getElementById('exp-qty').value='';
 
-            // 3. Find lots and render clickable items
             const matches = stockData.filter(d=>d.productName===name && parseInt(d.quantity)>0).sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate));
-            
-            if(matches.length === 0) {
-                l.innerHTML = '<div style="padding:10px; color:red">Hết hàng!</div>';
-                return;
-            }
+            if(matches.length === 0) { l.innerHTML = '<div style="padding:10px; color:red">Hết hàng!</div>'; return; }
 
             matches.forEach((lot,i)=>{
                 const el=document.createElement('div'); 
                 el.className = 'lot-selector';
-                el.innerHTML=`
-                    <div>
-                        <div style="font-weight:bold">${lot.productCode||'--'} | Lô: ${lot.lotNumber}</div>
-                        <div style="font-size:0.85rem">Hạn: ${lot.expiryDate} | Tồn: <b style="color:var(--primary)">${lot.quantity}</b></div>
-                    </div>
-                    <button class="lot-selector-btn">CHỌN</button>
-                `;
+                el.innerHTML=`<div><div style="font-weight:bold">${lot.productCode||'--'} | Lô: ${lot.lotNumber}</div><div style="font-size:0.85rem">Hạn: ${lot.expiryDate} | Tồn: <b style="color:var(--primary)">${lot.quantity}</b></div></div><button class="lot-selector-btn">CHỌN</button>`;
                 el.onclick=()=>{ 
-                    // Set active visual
                     document.querySelectorAll('.lot-selector').forEach(d=>d.classList.remove('active'));
                     el.classList.add('active');
-                    
-                    // Set Logic
                     currentExportLot=lot; 
                     document.getElementById('selected-lot-info').innerHTML = `<b>${lot.productName}</b> - Lô: ${lot.lotNumber} (Hạn: ${lot.expiryDate}) - Tồn: ${lot.quantity}`;
                     document.getElementById('exp-qty').disabled=false; 
@@ -693,131 +689,63 @@
             });
         }
         
-        // BUG FIX: Double Submission Fix added here
         window.confirmExport = async () => {
             const btn = document.getElementById('btn-export');
-            
-            // 1. DISABLE BUTTON IMMEDIATELY TO PREVENT DOUBLE CLICK
             btn.disabled = true;
-
             try {
                 const q = parseInt(document.getElementById('exp-qty').value);
-                if(!currentExportLot) {
-                    showToast('Chưa chọn lô hàng!', 'error');
-                    return; // disabled remains true, but user has to re-select anyway
-                }
+                if(!currentExportLot) { showToast('Chưa chọn lô hàng!', 'error'); return; }
                 const currentStock = parseInt(currentExportLot.quantity);
-                if(q > currentStock) { 
-                    showToast(`Xuất kho vượt quá tồn kho! (Tồn: ${currentStock})`, 'error'); 
-                    btn.disabled = false; // Re-enable if error
-                    return; 
-                }
-                if(q <= 0 || isNaN(q)) { 
-                    showToast(`Số lượng xuất không hợp lệ!`, 'error'); 
-                    btn.disabled = false; // Re-enable if error
-                    return; 
-                }
+                if(q > currentStock) { showToast(`Xuất kho vượt quá tồn kho! (Tồn: ${currentStock})`, 'error'); btn.disabled = false; return; }
+                if(q <= 0 || isNaN(q)) { showToast(`Số lượng xuất không hợp lệ!`, 'error'); btn.disabled = false; return; }
 
                 await refs.exports.push({
-                    productName:currentExportLot.productName, 
-                    productCode: currentExportLot.productCode, 
-                    unit: currentExportLot.unit, 
-                    lotNumber: currentExportLot.lotNumber, 
-                    expiryDate: currentExportLot.expiryDate, 
-                    quantity:q, 
-                    destination:document.getElementById('exp-dest').value, 
-                    exportDate:document.getElementById('exp-date').value, 
-                    relatedId:currentExportLot.id
+                    productName:currentExportLot.productName, productCode: currentExportLot.productCode, unit: currentExportLot.unit, lotNumber: currentExportLot.lotNumber, expiryDate: currentExportLot.expiryDate, quantity:q, destination:document.getElementById('exp-dest').value, exportDate:document.getElementById('exp-date').value, relatedId:currentExportLot.id
                 });
-                
                 await refs.items.child(currentExportLot.id).update({quantity:currentStock - q});
-                
                 showToast('Xuất OK','success'); 
-                
-                // Reset UI
                 document.getElementById('lot-list').innerHTML='<div style="text-align:center; color:#999; padding:10px; font-size:0.85rem">Đã xuất xong. Vui lòng chọn lại.</div>'; 
                 document.getElementById('selected-lot-info').innerText = 'Chưa chọn lô nào...';
                 document.getElementById('exp-name').value='';
                 document.getElementById('exp-qty').value=''; 
                 currentExportLot = null;
-                // Button remains disabled because selection is cleared
-            } catch (err) {
-                console.error(err);
-                showToast('Lỗi hệ thống!', 'error');
-                btn.disabled = false;
-            }
+            } catch (err) { console.error(err); showToast('Lỗi hệ thống!', 'error'); btn.disabled = false; }
         }
 
-        // ============================================================
-        // === NEW: REPORT SEARCH FEATURE & FILTER ====================
-        // ============================================================
-        
-        // Add listener for Report Search Input
+        // --- REPORT & SEARCH ---
         document.getElementById('rpt-search-input').addEventListener('input', function() {
             const val = cleanStr(this.value);
-            const container = document.getElementById('rpt-search-suggest');
-            container.innerHTML = '';
-            
-            // If empty, re-generate full report
-            if(!val) { 
-                genReport(); 
-                return; 
-            }
-
-            // Show suggestions from Stock Data
-            const matches = [...new Set(stockData.map(s => s.productName))]
-                .filter(name => cleanStr(name).includes(val))
-                .slice(0, 5);
-
+            const container = document.getElementById('rpt-search-suggest'); container.innerHTML = '';
+            if(!val) { genReport(); return; }
+            const matches = [...new Set(stockData.map(s => s.productName))].filter(name => cleanStr(name).includes(val)).slice(0, 5);
             matches.forEach(name => {
-                const div = document.createElement('div'); 
-                div.className = 'autocomplete-item'; 
-                div.innerText = name; 
-                div.onmousedown = (e) => { 
-                    e.preventDefault(); 
-                    this.value = name; 
-                    container.innerHTML = ''; 
-                    genReport(name); // Pass name to filter
-                }; 
+                const div = document.createElement('div'); div.className = 'autocomplete-item'; div.innerText = name; 
+                div.onmousedown = (e) => { e.preventDefault(); this.value = name; container.innerHTML = ''; genReport(name); }; 
                 container.appendChild(div);
             });
-            
-            // Also live filter the report table if user doesn't click suggestion
             genReport(val);
         });
-
-        // Hide suggestion on blur
         document.getElementById('rpt-search-input').addEventListener('blur', ()=>setTimeout(()=>document.getElementById('rpt-search-suggest').innerHTML='',200));
 
-        // Updated genReport to accept filter
         window.genReport = (filterTerm = '') => { 
             const s=new Date(document.getElementById('rpt-start').value), e=new Date(document.getElementById('rpt-end').value); 
             const r={}; 
             const cleanFilter = cleanStr(filterTerm);
-
             stockData.forEach(i=>{ 
-                // Filter Logic
                 if(cleanFilter && !cleanStr(i.productName).includes(cleanFilter)) return;
-
                 if(!r[i.productName]) r[i.productName]={name:i.productName, code: i.productCode||'', unit:i.unit||'', in:0, out:0, end:0}; 
                 r[i.productName].end+=parseInt(i.quantity); 
             }); 
-            
             const tbody = document.getElementById('rpt-body');
             tbody.innerHTML=Object.values(r).map(x=>`<tr style="cursor:pointer" title="Double click để xuất" ondblclick="handleProductClick('${x.name}')"><td>${x.code}</td><td><b>${x.name}</b></td><td>${x.unit}</td><td>-</td><td>${x.in}</td><td>${x.out}</td><td>${x.end}</td></tr>`).join(''); 
-            
             if(Object.keys(r).length === 0) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center">Không tìm thấy dữ liệu phù hợp</td></tr>';
         }
 
-        // ============================================================
-        // === BULK EXPORT LOGIC (Keep original logic) ================
-        // ============================================================
-        
+        // --- BULK EXPORT LOGIC ---
         window.toggleExportMode = (m) => {
             document.getElementById('exp-mode-paste').style.display = m==='paste'?'block':'none';
             document.getElementById('exp-mode-file').style.display = m==='file'?'block':'none';
         }
-
         document.getElementById('export-file-input').addEventListener('change', e => {
             const f=e.target.files[0]; if(!f) return;
             const r=new FileReader(); 
@@ -829,74 +757,53 @@
                 let data = [];
                 const startIdx = rows[0].join('').toLowerCase().includes('mã') ? 1 : 0;
                 for(let i=startIdx; i<rows.length; i++){
-                    const r = rows[i];
-                    if(r[1] || r[2]) {
-                        data.push({ code: r[1], name: r[2], unit: r[3], qty: r[4] });
-                    }
+                    const r = rows[i]; if(r[1] || r[2]) { data.push({ code: r[1], name: r[2], unit: r[3], qty: r[4] }); }
                 }
                 processBulkExportInput(data);
             }; 
             r.readAsArrayBuffer(f);
         });
-
         window.processExportPaste = () => {
-            const txt = document.getElementById('exp-paste-area').value; 
-            if(!txt) return; 
+            const txt = document.getElementById('exp-paste-area').value; if(!txt) return; 
             const rows = txt.trim().split('\n').map(r=>r.split('\t')); 
             const data = rows.map(c => ({ code:c[1], name:c[2], unit:c[3], qty:c[4] }));
             processBulkExportInput(data);
         }
-
         function processBulkExportInput(inputData) {
             bulkExportPreviewData = []; 
             inputData.forEach((req) => {
-                let reqQty = parseInt(req.qty);
-                if (!reqQty || reqQty <= 0) return;
-                let matches = [];
-                const searchCode = cleanStr(req.code);
-                const searchName = cleanStr(req.name);
-
-                if (searchCode) {
-                    matches = stockData.filter(s => cleanStr(s.productCode) === searchCode && parseInt(s.quantity) > 0);
-                }
-                if (matches.length === 0 && searchName) {
-                    matches = stockData.filter(s => cleanStr(s.productName) === searchName && parseInt(s.quantity) > 0);
-                }
-
+                let reqQty = parseInt(req.qty); if (!reqQty || reqQty <= 0) return;
+                let matches = []; const searchCode = cleanStr(req.code); const searchName = cleanStr(req.name);
+                if (searchCode) matches = stockData.filter(s => cleanStr(s.productCode) === searchCode && parseInt(s.quantity) > 0);
+                if (matches.length === 0 && searchName) matches = stockData.filter(s => cleanStr(s.productName) === searchName && parseInt(s.quantity) > 0);
                 matches.sort((a,b) => new Date(a.expiryDate) - new Date(b.expiryDate));
                 const totalStock = matches.reduce((sum, item) => sum + parseInt(item.quantity), 0);
-
                 if (reqQty > totalStock) {
                     bulkExportPreviewData.push({ isError: true, productCode: req.code || '?', productName: req.name || 'Sản phẩm chưa xác định', reqQty: reqQty, totalStock: totalStock, msg: `Thiếu hàng! (Cần: ${reqQty}, Có: ${totalStock})` });
                 } else {
                     for (let batch of matches) {
                         if (reqQty <= 0) break;
-                        let available = parseInt(batch.quantity);
-                        let take = Math.min(available, reqQty);
+                        let available = parseInt(batch.quantity); let take = Math.min(available, reqQty);
                         bulkExportPreviewData.push({ isError: false, relatedId: batch.id, productCode: batch.productCode, productName: batch.productName, unit: batch.unit, lotNumber: batch.lotNumber, expiryDate: batch.expiryDate, exportQty: take, originalStock: available });
                         reqQty -= take;
                     }
                 }
             });
-            renderBulkExportPreview();
-            document.getElementById('exp-preview-box').style.display = 'flex';
+            renderBulkExportPreview(); document.getElementById('exp-preview-box').style.display = 'flex';
         }
-
         function renderBulkExportPreview() {
             const tb = document.getElementById('exp-preview-body'); tb.innerHTML = '';
             if(bulkExportPreviewData.length === 0) { tb.innerHTML = '<tr><td colspan="6" style="text-align:center">Không tìm thấy dữ liệu hợp lệ.</td></tr>'; return; }
             bulkExportPreviewData.forEach((d, i) => {
                 const tr = document.createElement('tr');
                 if (d.isError) {
-                    tr.className = 'row-error';
-                    tr.innerHTML = `<td>${d.productCode}</td><td>${d.productName}</td><td colspan="3" style="color:#b91c1c; font-weight:bold">${d.msg}</td><td><button class="btn btn-danger" style="padding:2px 5px" onclick="removeBulkItem(${i})">X</button></td>`;
+                    tr.className = 'row-error'; tr.innerHTML = `<td>${d.productCode}</td><td>${d.productName}</td><td colspan="3" style="color:#b91c1c; font-weight:bold">${d.msg}</td><td><button class="btn btn-danger" style="padding:2px 5px" onclick="removeBulkItem(${i})">X</button></td>`;
                 } else {
                     tr.innerHTML = `<td>${d.productCode}</td><td><b>${d.productName}</b></td><td>${d.lotNumber} <small style="color:#666">(Tồn: ${d.originalStock})</small></td><td>${d.expiryDate}</td><td style="font-weight:bold; color:var(--primary); text-align:center">${d.exportQty}</td><td><button class="btn btn-danger" style="padding:2px 5px" onclick="removeBulkItem(${i})">X</button></td>`;
                 }
                 tb.appendChild(tr);
             });
         }
-
         window.removeBulkItem = (i) => { bulkExportPreviewData.splice(i, 1); renderBulkExportPreview(); }
         window.executeBulkExport = async () => {
             if (bulkExportPreviewData.some(d => d.isError)) return alert('Vui lòng loại bỏ các dòng lỗi (màu đỏ) trước khi xuất kho!');
@@ -921,6 +828,126 @@
             document.getElementById('exp-paste-area').value = '';
             document.getElementById('export-file-input').value = '';
             bulkExportPreviewData = [];
+        }
+
+        // =========================================================
+        // === NEW FEATURE: ERP STOCK CHECK ========================
+        // =========================================================
+
+        window.processERPCheck = () => {
+            const fileInput = document.getElementById('erp-file-upload');
+            const file = fileInput.files[0];
+            if (!file) {
+                return showToast('Vui lòng chọn file báo cáo N-X-T!', 'error');
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                
+                // Parse Excel to JSON with header detection
+                const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 }); // Array of arrays
+
+                // 1. Calculate Total App Stock per Product Code
+                // Map: code -> { name, totalQty }
+                const appStockMap = {};
+                stockData.forEach(item => {
+                    const code = cleanCode(item.productCode);
+                    if(code) {
+                        if (!appStockMap[code]) {
+                            appStockMap[code] = { name: item.productName, qty: 0 };
+                        }
+                        appStockMap[code].qty += parseInt(item.quantity);
+                    }
+                });
+
+                // 2. Parse ERP Excel Data
+                const erpStockMap = {};
+                // Looking for columns: "Mã SP" and "Tồn cuối kỳ"
+                // Based on provided file, "Mã SP" is usually index 1, "Tồn cuối kỳ" is usually index 12.
+                // We will try to find header row first.
+                let headerRowIndex = -1;
+                let colCodeIdx = -1;
+                let colStockIdx = -1;
+
+                for(let i=0; i<Math.min(20, json.length); i++) {
+                    const rowStr = json[i].join(' ').toLowerCase();
+                    if(rowStr.includes('mã sp') && rowStr.includes('tồn cuối')) {
+                        headerRowIndex = i;
+                        json[i].forEach((cell, idx) => {
+                            const c = (cell || '').toString().toLowerCase();
+                            if(c.includes('mã sp')) colCodeIdx = idx;
+                            if(c.includes('tồn cuối')) colStockIdx = idx;
+                        });
+                        break;
+                    }
+                }
+
+                // Fallback to provided file structure if header not found clearly
+                if(colCodeIdx === -1) colCodeIdx = 1; 
+                if(colStockIdx === -1) colStockIdx = 12;
+
+                for (let i = headerRowIndex + 1; i < json.length; i++) {
+                    const row = json[i];
+                    if (!row || !row[colCodeIdx]) continue;
+                    
+                    const code = cleanCode(row[colCodeIdx]);
+                    const stock = parseInt(row[colStockIdx]);
+                    
+                    if (code && !isNaN(stock)) {
+                        // Handle case where one code appears multiple times in Excel (unlikely for NXT report but possible)
+                        if(!erpStockMap[code]) erpStockMap[code] = 0;
+                        erpStockMap[code] += stock;
+                    }
+                }
+
+                // 3. Compare and Find Discrepancies (App > ERP)
+                const discrepancies = [];
+                Object.keys(appStockMap).forEach(code => {
+                    const appQty = appStockMap[code].qty;
+                    const erpQty = erpStockMap[code] || 0;
+
+                    if (appQty > erpQty) {
+                        discrepancies.push({
+                            code: code,
+                            name: appStockMap[code].name,
+                            appQty: appQty,
+                            erpQty: erpQty,
+                            diff: appQty - erpQty
+                        });
+                    }
+                });
+
+                // 4. Render Results
+                renderERPDiffTable(discrepancies);
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
+        function renderERPDiffTable(data) {
+            const tableBody = document.getElementById('erp-diff-body');
+            const resultBox = document.getElementById('erp-result-box');
+            tableBody.innerHTML = '';
+            
+            if (data.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:green; padding:15px;">✅ Tuyệt vời! Không có mã nào mà App nhiều hơn ERP.</td></tr>';
+            } else {
+                data.forEach(item => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td><b>${item.code.toUpperCase()}</b></td>
+                        <td>${item.name}</td>
+                        <td style="text-align:center">${item.appQty}</td>
+                        <td style="text-align:center">${item.erpQty}</td>
+                        <td style="color:#b91c1c; font-weight:bold; text-align:center">+${item.diff}</td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
+            }
+            resultBox.style.display = 'block';
         }
 
         // --- SECURITY DELETE ---
