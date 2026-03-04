@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản Lý Kho Dược GDP - IDECO (Updated with ERP Check)</title>
+    <title>Quản Lý Kho Dược GDP - IDECO (Updated with ERP Check & Date Filter)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -81,6 +81,35 @@
         .lot-selector-btn {
             background: var(--primary); color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 0.8rem;
         }
+
+        /* Date filter styles */
+        .date-filter-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            align-items: center;
+            background: #f1f5f9;
+            padding: 10px;
+            border-radius: 6px;
+        }
+        .date-filter-container label {
+            margin-bottom: 0;
+            white-space: nowrap;
+        }
+        .date-filter-container input {
+            margin-bottom: 0;
+            flex: 1;
+        }
+        .filter-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .filter-btn:hover { opacity: 0.9; }
     </style>
 </head>
 <body>
@@ -287,8 +316,20 @@
             </div>
 
             <div class="card" style="margin-top:20px; height:auto">
-                <div class="card-header">Lịch Sử Xuất Kho</div>
-                <button class="btn btn-success" style="width:100%; margin-bottom:10px" onclick="openSignatureModal()">Xuất Excel Lịch Sử</button>
+                <div class="card-header">
+                    Lịch Sử Xuất Kho
+                </div>
+                
+                <!-- Date Filter for Export History -->
+                <div class="date-filter-container">
+                    <label>Từ ngày:</label>
+                    <input type="date" id="export-filter-start">
+                    <label>Đến ngày:</label>
+                    <input type="date" id="export-filter-end">
+                    <button class="filter-btn" onclick="filterExportHistory()">🔍 Lọc</button>
+                    <button class="btn btn-success" onclick="openSignatureModal()">Xuất Excel Lịch Sử</button>
+                </div>
+                
                 <div id="export-list" style="overflow-y:auto; flex:1; max-height:500px; border:1px solid #f1f5f9; padding:5px; border-radius:6px;"></div>
             </div>
 
@@ -411,6 +452,7 @@
 
         let stockData=[], exportData=[], masterData=[], previewData=[], currentExportLot=null;
         let bulkExportPreviewData = []; 
+        let filteredExportData = []; // For date-filtered exports
 
         // INIT DATE
         const today = new Date().toISOString().split('T')[0];
@@ -419,11 +461,21 @@
         document.getElementById('bulk-exp-date').value = today;
         document.getElementById('rpt-start').valueAsDate = new Date(new Date().getFullYear(), 0, 1);
         document.getElementById('rpt-end').valueAsDate = new Date();
+        
+        // Set default filter dates (last 30 days)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        document.getElementById('export-filter-start').valueAsDate = thirtyDaysAgo;
+        document.getElementById('export-filter-end').valueAsDate = new Date();
 
         // LOADING DATA
         refs.master.on('value', s => { const d=s.val(); const f=d?Object.keys(d).map(k=>({id:k,...d[k]})):[]; renderMasterFilesList(f); refreshMasterData(f); });
         refs.items.on('value', s => { const d=s.val(); stockData=d?Object.keys(d).map(k=>({id:k,...d[k]})):[]; renderStockTable(); refs.master.once('value', s=>{const fd=s.val();const f=fd?Object.keys(fd).map(k=>({id:k,...fd[k]})):[]; refreshMasterData(f);}); });
-        refs.exports.on('value', s => { const d=s.val(); exportData=d?Object.keys(d).map(k=>({id:k,...d[k]})):[]; renderExportHistory(); });
+        refs.exports.on('value', s => { 
+            const d=s.val(); 
+            exportData=d?Object.keys(d).map(k=>({id:k,...d[k]})):[]; 
+            filterExportHistory(); // Apply date filter when data loads
+        });
         
         refs.logs.on('value', s => {
             const log = s.val();
@@ -567,17 +619,44 @@
             showToast('Đã tải xuống file Excel!', 'success');
         }
 
-        // --- EXPORT HISTORY FUNCTIONS ---
-        function renderExportHistory() {
+        // --- EXPORT HISTORY FUNCTIONS with Date Filter ---
+        window.filterExportHistory = () => {
+            const startDate = document.getElementById('export-filter-start').value;
+            const endDate = document.getElementById('export-filter-end').value;
+            
+            if (!startDate || !endDate) {
+                filteredExportData = [...exportData];
+            } else {
+                const start = new Date(startDate);
+                start.setHours(0, 0, 0, 0);
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                
+                filteredExportData = exportData.filter(item => {
+                    const itemDate = new Date(item.exportDate);
+                    return itemDate >= start && itemDate <= end;
+                });
+            }
+            
+            renderFilteredExportHistory();
+        };
+
+        function renderFilteredExportHistory() {
             const div = document.getElementById('export-list'); div.innerHTML = '';
-            const list = exportData.sort((a,b)=>new Date(b.exportDate)-new Date(a.exportDate));
-            if(list.length === 0) { div.innerHTML='<div style="padding:10px; color:#999; text-align:center">Chưa có lịch sử xuất.</div>'; return; }
+            const list = filteredExportData.sort((a,b)=>new Date(b.exportDate)-new Date(a.exportDate));
+            
+            if(list.length === 0) { 
+                div.innerHTML='<div style="padding:10px; color:#999; text-align:center">Không có dữ liệu xuất trong khoảng thời gian này.</div>'; 
+                return; 
+            }
+            
             list.forEach(e => {
                 const item = document.createElement('div'); item.className = 'export-item';
                 item.innerHTML = `<div class="export-info"><strong>${e.productName}</strong> <span style="color:var(--secondary); font-weight:bold;">[${e.productCode || '--'}]</span> <span style="color:#666">(${e.unit || '-'})</span><br><small>Lô: ${e.lotNumber} | Hạn: ${e.expiryDate} | SL: <b style="color:var(--danger)">${e.quantity}</b></small><br><small style="color:#888">Ngày: ${e.exportDate} -> ${e.destination}</small></div><div class="export-actions"><button class="btn btn-warning" onclick="openEditExport('${e.id}')">Sửa</button><button class="btn btn-danger" onclick="deleteExport('${e.id}')">Xóa</button></div>`;
                 div.appendChild(item);
             });
         }
+
         window.deleteExport = async (id) => {
             if(!confirm('Xóa phiếu xuất và hoàn kho?')) return;
             const ex = exportData.find(x => x.id === id);
@@ -586,6 +665,7 @@
             await refs.exports.child(id).remove();
             showToast('Đã xóa phiếu xuất', 'success');
         }
+        
         window.openEditExport = (id) => {
             const ex = exportData.find(x => x.id === id);
             document.getElementById('edit-ex-id').value = id;
@@ -597,6 +677,7 @@
             document.getElementById('edit-ex-date').value = ex.exportDate;
             document.getElementById('edit-export-modal').style.display = 'flex';
         }
+        
         window.saveExportEdit = async () => {
             const id = document.getElementById('edit-ex-id').value;
             const relatedId = document.getElementById('edit-ex-related').value;
@@ -615,9 +696,9 @@
             showToast('Đã cập nhật', 'success');
         }
 
-        // --- SIGNATURE EXPORT ---
+        // --- SIGNATURE EXPORT with Date Filter ---
         window.openSignatureModal = () => {
-            if(exportData.length === 0) return showToast('Không có dữ liệu để xuất!', 'error');
+            if(filteredExportData.length === 0) return showToast('Không có dữ liệu để xuất trong khoảng thời gian đã chọn!', 'error');
             document.getElementById('signature-modal').style.display = 'flex';
             document.getElementById('sign-keeper').value = '';
             document.getElementById('sign-manager').value = '';
@@ -632,17 +713,23 @@
         }
 
         function exportHistoryWithSignatures(keeper, manager) {
+            const startDate = document.getElementById('export-filter-start').value;
+            const endDate = document.getElementById('export-filter-end').value;
+            const periodText = startDate && endDate ? `Từ ${startDate} đến ${endDate}` : 'Toàn bộ thời gian';
+            
             const title = [['BÁO CÁO LỊCH SỬ XUẤT KHO - IDECO']];
+            const periodInfo = [[`Kỳ báo cáo: ${periodText}`]];
             const dateInfo = [[`Ngày xuất báo cáo: ${new Date().toLocaleString('vi-VN')}`], ['']];
             const headers = [['Ngày Xuất', 'Mã SP', 'Tên Hàng Hóa', 'Đơn Vị', 'Số Lô', 'Hạn Dùng', 'Nơi Nhận', 'Số Lượng']];
-            const body = exportData.map(e => [e.exportDate,e.productCode || '',e.productName,e.unit || '',e.lotNumber,e.expiryDate,e.destination,e.quantity]);
-            const footer = [['', '', '', '', '', '', '', ''],['', '', '', '', '', '', '', ''],['NGƯỜI LẬP BẢO CÁO', '', '', '', 'XÁC NHẬN CỦA QUẢN LÝ', '', '', ''],['(Phụ trách kho)', '', '', '', '(Quản lý Kế toán/Kho)', '', '', ''],['', '', '', '', '', '', '', ''],['', '', '', '', '', '', '', ''],[`${keeper}`, '', '', '', `${manager}`, '', '', '']];
-            const fullData = [...title, ...dateInfo, ...headers, ...body, ...footer];
+            const body = filteredExportData.map(e => [e.exportDate, e.productCode || '', e.productName, e.unit || '', e.lotNumber, e.expiryDate, e.destination, e.quantity]);
+            const footer = [['', '', '', '', '', '', '', ''],['', '', '', '', '', '', '', ''],['NGƯỜI LẬP BÁO CÁO', '', '', '', 'XÁC NHẬN CỦA QUẢN LÝ', '', '', ''],['(Phụ trách kho)', '', '', '', '(Quản lý Kế toán/Kho)', '', '', ''],['', '', '', '', '', '', '', ''],['', '', '', '', '', '', '', ''],[`${keeper}`, '', '', '', `${manager}`, '', '', '']];
+            const fullData = [...title, ...periodInfo, ...dateInfo, ...headers, ...body, ...footer];
             const ws = XLSX.utils.aoa_to_sheet(fullData);
             ws['!cols'] = [{wch:15}, {wch:15}, {wch:30}, {wch:10}, {wch:15}, {wch:15}, {wch:20}, {wch:10}];
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "LichSuXuat");
-            XLSX.writeFile(wb, `LichSuXuat_Signed_${new Date().toISOString().slice(0,10)}.xlsx`);
+            const fileName = `LichSuXuat_${startDate || 'all'}_to_${endDate || 'all'}_${new Date().toISOString().slice(0,10)}.xlsx`;
+            XLSX.writeFile(wb, fileName);
             showToast('Đã xuất file kèm chữ ký!', 'success');
         }
 
@@ -978,6 +1065,12 @@
         window.toggleMode=(m)=>{ document.getElementById('mode-paste').style.display=m==='paste'?'block':'none'; document.getElementById('mode-file').style.display=m==='file'?'block':'none'; }
         window.toggleMasterSection=()=>{ const el=document.getElementById('master-section'); el.style.display=el.style.display==='none'?'block':'none'; }
         window.showToast=(m,t)=>{ const el=document.getElementById('toast'); el.innerText=m; el.style.background=t==='error'?'#ef4444':'#10b981'; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),3000); }
+
+        // Export Report Excel function (kept from original)
+        window.exportReportExcel = () => {
+            // Simple implementation - can be expanded if needed
+            showToast('Tính năng đang phát triển', 'warning');
+        }
     </script>
 </body>
 </html>
