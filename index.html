@@ -596,7 +596,10 @@
                 await refs.items.child(exist.id).update({ 
                     quantity: parseInt(exist.quantity) + parseInt(item.quantity), 
                     unit: item.unit, 
-                    productCode: item.productCode || exist.productCode 
+                    productCode: item.productCode || exist.productCode, 
+                    // CẬP NHẬT NGÀY NHẬP MỖI LẦN NHẬP THÊM (để cảnh báo "ĐÃ NHẬP HÔM NAY" hoạt động cho cả lô cũ)
+                    importDate: item.importDate || new Date().toISOString().split('T')[0], 
+                    createdAt: item.createdAt || new Date().toISOString() 
                 });
             } else {
                 await refs.items.push(item);
