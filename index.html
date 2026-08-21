@@ -110,6 +110,38 @@
             white-space: nowrap;
         }
         .filter-btn:hover { opacity: 0.9; }
+
+
+        /* GDP/SOP safety verification popup */
+        .safety-modal { display:none; position:fixed; inset:0; background:rgba(15,23,42,.76); z-index:20000; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(3px); }
+        .safety-dialog { width:min(980px, 96vw); max-height:92vh; overflow:hidden; background:#fff; border-radius:16px; box-shadow:0 28px 80px rgba(0,0,0,.35); border:2px solid #dc2626; display:flex; flex-direction:column; }
+        .safety-head { background:linear-gradient(135deg,#991b1b,#dc2626); color:#fff; padding:16px 20px; display:flex; gap:12px; align-items:flex-start; }
+        .safety-icon { width:44px; height:44px; border-radius:12px; background:rgba(255,255,255,.18); display:flex; align-items:center; justify-content:center; font-size:26px; flex:0 0 auto; }
+        .safety-head h3 { margin:0; font-size:1.2rem; letter-spacing:.2px; }
+        .safety-head p { margin:4px 0 0; font-size:.88rem; opacity:.95; }
+        .safety-body { padding:18px 20px; overflow:auto; }
+        .safety-reminder { background:#fff7ed; border:1px solid #fdba74; border-left:5px solid #f97316; border-radius:10px; padding:12px 14px; color:#7c2d12; font-size:.93rem; line-height:1.55; margin-bottom:14px; }
+        .safety-reminder strong { color:#b91c1c; }
+        .safety-critical { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-bottom:12px; }
+        .safety-chip { border:1px solid #cbd5e1; background:#f8fafc; border-radius:10px; padding:9px 10px; min-height:62px; }
+        .safety-chip .k { display:block; font-size:.72rem; text-transform:uppercase; color:#64748b; font-weight:800; letter-spacing:.35px; }
+        .safety-chip .v { display:block; margin-top:3px; font-size:.92rem; color:#0f172a; font-weight:800; word-break:break-word; }
+        .safety-chip.missing { border-color:#fca5a5; background:#fef2f2; }
+        .safety-chip.missing .v { color:#b91c1c; }
+        .safety-table-wrap { border:1px solid #e2e8f0; border-radius:10px; overflow:auto; max-height:310px; }
+        .safety-table { width:100%; border-collapse:collapse; margin:0; font-size:.83rem; min-width:880px; }
+        .safety-table th { position:sticky; top:0; z-index:2; background:#f1f5f9; padding:8px; border:1px solid #e2e8f0; white-space:nowrap; }
+        .safety-table td { padding:8px; border:1px solid #e2e8f0; vertical-align:middle; }
+        .safety-table .critical-value { font-weight:800; color:#b91c1c; }
+        .safety-monthly-note { margin-top:12px; padding:10px 12px; background:#eff6ff; border:1px solid #93c5fd; border-radius:9px; color:#1e3a8a; font-size:.86rem; }
+        .safety-ack { margin-top:14px; display:flex; gap:10px; align-items:flex-start; background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:11px 12px; }
+        .safety-ack input { width:20px; height:20px; margin:1px 0 0; flex:0 0 auto; }
+        .safety-ack label { margin:0; color:#0f172a; font-size:.9rem; font-weight:700; cursor:pointer; }
+        .safety-actions { padding:12px 20px 18px; display:flex; justify-content:flex-end; gap:10px; border-top:1px solid #e2e8f0; background:#fff; }
+        .btn-safety-confirm { background:#b91c1c; min-width:190px; }
+        .btn-safety-confirm:disabled { background:#94a3b8; opacity:.7; }
+        .btn-safety-cancel { background:#64748b; }
+        @media(max-width:760px){ .safety-critical{grid-template-columns:1fr 1fr;} .safety-dialog{max-height:95vh;} .safety-head{padding:13px 14px;} .safety-body{padding:14px;} .safety-actions{padding:10px 14px 14px;} }
     </style>
 </head>
 <body>
@@ -149,6 +181,10 @@
                         <div style="flex:1"><label>Đơn Vị</label><input type="text" id="imp-unit" placeholder="Hộp/Viên..."></div>
                     </div>
                     <div style="display:flex; gap:10px">
+                        <div style="flex:1"><label>Hàm lượng / Nồng độ</label><input type="text" id="imp-strength" placeholder="VD: 500mg, 0,1%..."></div>
+                        <div style="flex:1"><label>Quy cách</label><input type="text" id="imp-pack" placeholder="VD: Hộp 10 vỉ x 10 viên"></div>
+                    </div>
+                    <div style="display:flex; gap:10px">
                         <div style="flex:1"><label>Số Lô</label><input type="text" id="imp-lot"></div>
                         <div style="flex:1"><label>Hạn Dùng</label><input type="date" id="imp-exp"></div>
                     </div>
@@ -168,7 +204,7 @@
                         </div>
                     </div>
                     <div id="mode-paste">
-                        <p style="font-size:0.85rem; color:#64748b; margin-bottom:5px">Cột: <b>STT | Tên | Đơn Vị | Lô | Hạn | SL</b></p>
+                        <p style="font-size:0.85rem; color:#64748b; margin-bottom:5px">Cột: <b>STT | Tên | Đơn Vị | Lô | Hạn | SL</b> <small>(Hàm lượng/Quy cách tự lấy từ Master nếu có)</small></p>
                         <textarea id="paste-area" style="height:80px; width:100%; border:2px dashed #ccc; background:#f9f9f9"></textarea>
                         <button class="btn btn-primary" style="width:100%; margin-top:5px" onclick="processPaste()">🔍 Soi Chiếu</button>
                     </div>
@@ -178,7 +214,7 @@
                     <div id="preview-box" style="display:none; flex:1; flex-direction:column; margin-top:15px; border-top:2px solid #f1f5f9; padding-top:10px;">
                         <div style="overflow-y:auto; flex:1; min-height:200px;">
                             <table id="preview-table">
-                                <thead><tr><th style="width:130px">Mã SP</th><th>Tên Hàng Hóa</th><th>Đơn Vị</th><th>Lô</th><th>Hạn</th><th>SL</th><th></th></tr></thead>
+                                <thead><tr><th style="width:130px">Mã SP</th><th>Tên Hàng Hóa</th><th>Hàm lượng</th><th>Quy cách</th><th>Đơn Vị</th><th>Lô</th><th>Hạn</th><th>SL</th><th></th></tr></thead>
                                 <tbody id="preview-body"></tbody>
                             </table>
                         </div>
@@ -201,7 +237,7 @@
                 </div>
                 <div style="overflow-x:auto; max-height:500px">
                     <table id="stock-table">
-                        <thead><tr><th>STT</th><th>Mã SP</th><th>Tên Hàng Hóa</th><th>Đơn Vị</th><th>Số Lô</th><th>Hạn Dùng</th><th>Tồn</th><th>Thao Tác</th></tr></thead>
+                        <thead><tr><th>STT</th><th>Mã SP</th><th>Tên Hàng Hóa</th><th>Hàm lượng/NĐ</th><th>Quy cách</th><th>Đơn Vị</th><th>Số Lô</th><th>Hạn Dùng</th><th>Tồn</th><th>Thao Tác</th></tr></thead>
                         <tbody id="stock-body"></tbody>
                     </table>
                 </div>
@@ -383,6 +419,8 @@
             <input type="text" id="edit-name" placeholder="Tên">
             <input type="text" id="edit-code" placeholder="Mã">
             <input type="text" id="edit-unit" placeholder="Đơn vị">
+            <input type="text" id="edit-strength" placeholder="Hàm lượng / Nồng độ">
+            <input type="text" id="edit-pack" placeholder="Quy cách">
             <input type="text" id="edit-lot" placeholder="Lô">
             <input type="date" id="edit-exp">
             <input type="number" id="edit-qty">
@@ -425,6 +463,37 @@
             <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px">
                 <button class="btn btn-primary" onclick="processExportWithSignature()">XUẤT FILE EXCEL</button>
                 <button class="btn btn-light" onclick="document.getElementById('signature-modal').style.display='none'" style="border:1px solid #ccc; color:#333">Hủy</button>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- GDP/SOP SAFETY VERIFICATION -->
+    <div id="safety-verification-modal" class="safety-modal" role="dialog" aria-modal="true" aria-labelledby="safety-title">
+        <div class="safety-dialog">
+            <div class="safety-head">
+                <div class="safety-icon">🛡️</div>
+                <div>
+                    <h3 id="safety-title">KIỂM TRA AN TOÀN TRƯỚC KHI GHI DỮ LIỆU KHO</h3>
+                    <p id="safety-subtitle">Đối chiếu lại chứng từ, nhãn thực tế và dữ liệu trước khi xác nhận.</p>
+                </div>
+            </div>
+            <div class="safety-body">
+                <div class="safety-reminder">
+                    <b>Huyền nhắc bạn:</b> phải hết sức cẩn thận kiểm tra lại <strong>SỐ LƯỢNG – SỐ LÔ – HÀM LƯỢNG/NỒNG ĐỘ – HẠN DÙNG – TÊN SẢN PHẨM – QUY CÁCH</strong> và nhập liệu chính xác. Dữ liệu kho ảnh hưởng trực tiếp đến hoạt động kinh doanh thuốc và việc tuân thủ <strong>GDP – SOP</strong> của công ty. Hãy xem lại thật kỹ trước khi xác nhận.
+                </div>
+                <div id="safety-summary" class="safety-critical"></div>
+                <div id="safety-detail-container"></div>
+                <div class="safety-monthly-note">📁 <b>Nhắc định kỳ:</b> luôn lưu file sao lưu theo từng tháng, in/lưu phiếu nhập – xuất cần thiết và bảo đảm dữ liệu có thể truy xuất chính xác khi đối chiếu.</div>
+                <div class="safety-ack">
+                    <input type="checkbox" id="safety-ack-check">
+                    <label for="safety-ack-check">Tôi đã đối chiếu lại chứng từ/nhãn thực tế và xác nhận các thông số hiển thị trong popup là chính xác.</label>
+                </div>
+            </div>
+            <div class="safety-actions">
+                <button class="btn btn-safety-cancel" type="button" onclick="closeSafetyVerification(false)">QUAY LẠI KIỂM TRA</button>
+                <button class="btn btn-safety-confirm" id="safety-confirm-btn" type="button" disabled onclick="closeSafetyVerification(true)">ĐÃ KIỂM TRA – XÁC NHẬN</button>
             </div>
         </div>
     </div>
@@ -497,8 +566,8 @@
 
         function refreshMasterData(files) {
             const map = new Map();
-            files.forEach(f => { if(f.data) f.data.forEach(r => { const name = findColumnValue(r, ['Tên Hàng Hóa','Tên','Product Name']); const code = findColumnValue(r, ['Mã SP','Mã','Code']); const unit = findColumnValue(r, ['Đơn Vị','Unit']); if(name) { const k=cleanStr(name); map.set(k, { name: name, code: code||'', unit: unit||'', searchKey: k }); } }); });
-            stockData.forEach(s => { if(s.productName) { const k=cleanStr(s.productName); if(!map.has(k)) map.set(k, { name: s.productName, code: s.productCode||'', unit: s.unit||'', searchKey: k }); } });
+            files.forEach(f => { if(f.data) f.data.forEach(r => { const name = findColumnValue(r, ['Tên Hàng Hóa','Tên','Product Name']); const code = findColumnValue(r, ['Mã SP','Mã','Code']); const unit = findColumnValue(r, ['Đơn Vị','Unit']); const strength = findColumnValue(r, ['Hàm Lượng','Hàm lượng','Nồng Độ','Nồng độ','Strength']); const packSpec = findColumnValue(r, ['Quy Cách','Quy cách','Quy cách đóng gói','Pack','Packaging']); if(name) { const k=cleanStr(name); map.set(k, { name: name, code: code||'', unit: unit||'', strength: strength||'', packSpec: packSpec||'', searchKey: k }); } }); });
+            stockData.forEach(s => { if(s.productName) { const k=cleanStr(s.productName); if(!map.has(k)) map.set(k, { name: s.productName, code: s.productCode||'', unit: s.unit||'', strength: s.productStrength||'', packSpec: s.packSpec||'', searchKey: k }); } });
             masterData = Array.from(map.values());
             document.getElementById('master-status').innerText = `✅ Đã học ${masterData.length} mã.`;
             document.getElementById('master-code-list').innerHTML = masterData.filter(m => m.code).map(m => `<option value="${m.code}">${m.name}</option>`).join('');
@@ -521,7 +590,7 @@
             });
         }
 
-        document.getElementById('imp-name').addEventListener('input', function() { showSuggestions(this, 'name', document.getElementById('imp-suggest'), (m) => { this.value = m.name; document.getElementById('imp-code').value = m.code||''; document.getElementById('imp-unit').value = m.unit||''; }); });
+        document.getElementById('imp-name').addEventListener('input', function() { showSuggestions(this, 'name', document.getElementById('imp-suggest'), (m) => { this.value = m.name; document.getElementById('imp-code').value = m.code||''; document.getElementById('imp-unit').value = m.unit||''; document.getElementById('imp-strength').value = m.strength||''; document.getElementById('imp-pack').value = m.packSpec||''; }); });
         document.getElementById('imp-name').addEventListener('blur', () => setTimeout(() => document.getElementById('imp-suggest').innerHTML='', 200));
 
         // --- IMPORT LOGIC ---
@@ -536,7 +605,7 @@
                 const hasHeader=rows[0].join(' ').toLowerCase().includes('tên');
                 if(hasHeader) {
                     const json=XLSX.utils.sheet_to_json(ws);
-                    data=json.map(r=>({ name:findColumnValue(r,['Tên Hàng Hóa','Tên']), unit:findColumnValue(r,['Đơn Vị','Unit']), lot:findColumnValue(r,['Số Lô','Lô']), exp:parseDate(findColumnValue(r,['Hạn Sử Dụng','Hạn'])), qty:findColumnValue(r,['Số Lượng','SL']) }));
+                    data=json.map(r=>({ name:findColumnValue(r,['Tên Hàng Hóa','Tên']), unit:findColumnValue(r,['Đơn Vị','Unit']), strength:findColumnValue(r,['Hàm Lượng','Hàm lượng','Nồng Độ','Nồng độ','Strength']), packSpec:findColumnValue(r,['Quy Cách','Quy cách','Quy cách đóng gói','Pack','Packaging']), lot:findColumnValue(r,['Số Lô','Lô']), exp:parseDate(findColumnValue(r,['Hạn Sử Dụng','Hạn'])), qty:findColumnValue(r,['Số Lượng','SL']) }));
                 } else {
                     data=rows.map(r=>({ name:r[1], unit:r[2], lot:r[3], exp:parseDate(r[4]), qty:r[5] })).filter(d=>d.name);
                 }
@@ -547,7 +616,7 @@
         window.processPaste=()=>{ const txt=document.getElementById('paste-area').value; if(!txt) return; const rows=txt.trim().split('\n').map(r=>r.split('\t')); const data=rows.map(c=>({ name:c[1], unit:c[2], lot:c[3], exp:parseDate(c[4]), qty:c[5] })); generatePreview(data); }
 
         function generatePreview(data) {
-            previewData = data.map((d, i) => { const match = findBestMatch(d.name); return { id: i, productName: d.name, productCode: match ? match.code : '', unit: d.unit || (match ? match.unit : ''), lotNumber: d.lot, expiryDate: d.exp, quantity: d.qty }; });
+            previewData = data.map((d, i) => { const match = findBestMatch(d.name); return { id: i, productName: d.name, productCode: match ? match.code : '', productStrength: d.strength || (match ? match.strength : ''), packSpec: d.packSpec || (match ? match.packSpec : ''), unit: d.unit || (match ? match.unit : ''), lotNumber: d.lot, expiryDate: d.exp, quantity: d.qty }; });
             renderPreviewTable(); document.getElementById('preview-box').style.display='flex';
         }
 
@@ -558,27 +627,47 @@
                 const tdCode = document.createElement('td'); tdCode.style.position='relative';
                 const inpCode = document.createElement('input'); inpCode.className = 'table-input ' + (d.productCode?'code-found':''); inpCode.list="master-code-list"; inpCode.value = d.productCode || '';
                 const sugCode = document.createElement('div'); sugCode.className = 'autocomplete-items';
-                inpCode.oninput = function() { d.productCode = this.value; showSuggestions(this, 'code', sugCode, (m) => { d.productCode = m.code; d.productName = m.name; d.unit = m.unit; this.value = m.code; tr.querySelector('.inp-name').value = m.name; tr.querySelector('.inp-unit').value = m.unit; }); };
+                inpCode.oninput = function() { d.productCode = this.value; showSuggestions(this, 'code', sugCode, (m) => { d.productCode = m.code; d.productName = m.name; d.unit = m.unit; d.productStrength = m.strength||''; d.packSpec = m.packSpec||''; this.value = m.code; tr.querySelector('.inp-name').value = m.name; tr.querySelector('.inp-strength').value = d.productStrength; tr.querySelector('.inp-pack').value = d.packSpec; tr.querySelector('.inp-unit').value = m.unit; }); };
                 inpCode.onblur = () => setTimeout(()=>sugCode.innerHTML='', 200);
                 tdCode.append(inpCode, sugCode);
 
                 const tdName = document.createElement('td'); tdName.style.position='relative';
                 const inpName = document.createElement('input'); inpName.className = 'table-input inp-name'; inpName.value = d.productName || '';
                 const sugName = document.createElement('div'); sugName.className = 'autocomplete-items';
-                inpName.oninput = function() { d.productName = this.value; showSuggestions(this, 'name', sugName, (m) => { d.productName = m.name; d.productCode = m.code; d.unit = m.unit; this.value = m.name; tr.querySelector('.table-input').value = m.code; tr.querySelector('.inp-unit').value = m.unit; }); };
+                inpName.oninput = function() { d.productName = this.value; showSuggestions(this, 'name', sugName, (m) => { d.productName = m.name; d.productCode = m.code; d.unit = m.unit; d.productStrength = m.strength||''; d.packSpec = m.packSpec||''; this.value = m.name; tr.querySelector('.table-input').value = m.code; tr.querySelector('.inp-strength').value = d.productStrength; tr.querySelector('.inp-pack').value = d.packSpec; tr.querySelector('.inp-unit').value = m.unit; }); };
                 inpName.onblur = () => setTimeout(()=>sugName.innerHTML='', 200);
                 tdName.append(inpName, sugName);
 
+                const tdStrength = document.createElement('td'); tdStrength.innerHTML = `<input class="table-input inp-strength" value="${d.productStrength||''}" onchange="previewData[${i}].productStrength=this.value">`;
+                const tdPack = document.createElement('td'); tdPack.innerHTML = `<input class="table-input inp-pack" value="${d.packSpec||''}" onchange="previewData[${i}].packSpec=this.value">`;
                 const tdUnit = document.createElement('td'); tdUnit.innerHTML = `<input class="table-input inp-unit" value="${d.unit||''}" onchange="previewData[${i}].unit=this.value">`;
                 const tdLot = document.createElement('td'); tdLot.innerHTML = `<input class="table-input" value="${d.lotNumber||''}" onchange="previewData[${i}].lotNumber=this.value">`;
                 const tdExp = document.createElement('td'); tdExp.innerHTML = `<input type="date" class="table-input" value="${d.expiryDate||''}" onchange="previewData[${i}].expiryDate=this.value">`;
                 const tdQty = document.createElement('td'); tdQty.innerHTML = `<input type="number" class="table-input" value="${d.quantity||''}" onchange="previewData[${i}].quantity=this.value">`;
                 const tdAct = document.createElement('td'); tdAct.innerHTML = `<button class="btn btn-danger" style="padding:2px 5px" onclick="removePreviewItem(${i})">X</button>`;
-                tr.append(tdCode, tdName, tdUnit, tdLot, tdExp, tdQty, tdAct); tb.appendChild(tr);
+                tr.append(tdCode, tdName, tdStrength, tdPack, tdUnit, tdLot, tdExp, tdQty, tdAct); tb.appendChild(tr);
             });
         }
         window.removePreviewItem = (i) => { previewData.splice(i, 1); renderPreviewTable(); }
-        window.syncData = async () => { let c=0; for(const d of previewData) { if(d.productName && d.quantity) { await saveToInventory({ productName: d.productName, productCode: d.productCode, unit: d.unit, lotNumber: d.lotNumber, expiryDate: d.expiryDate, quantity: parseInt(d.quantity), importDate: new Date().toISOString().split('T')[0], createdAt: new Date().toISOString() }); c++; } } showToast(`Đã nhập ${c} dòng`, 'success'); document.getElementById('preview-box').style.display='none'; }
+        window.syncData = async () => {
+            if(previewData.length === 0) return showToast('Không có dòng để nhập kho!', 'error');
+            const invalidCritical = previewData.filter(d => !d.productName || !d.lotNumber || !d.expiryDate || !d.quantity || parseInt(d.quantity) <= 0);
+            if(invalidCritical.length > 0) return showToast(`Có ${invalidCritical.length} dòng thiếu Tên SP / Số lô / Hạn dùng / Số lượng. Không cho phép đồng bộ!`, 'error');
+            const validItems = [...previewData];
+            const ok = await openSafetyVerification({
+                title: 'KIỂM TRA TRƯỚC KHI ĐỒNG BỘ NHẬP KHO',
+                subtitle: `Sắp ghi ${validItems.length} dòng vào tồn kho. Hãy kiểm tra từng dòng.`,
+                actionType: 'NHẬP KHO HÀNG LOẠT',
+                items: validItems.map(d => ({...d, quantity: parseInt(d.quantity)})),
+                date: new Date().toISOString().split('T')[0]
+            });
+            if(!ok) return;
+            let c=0;
+            for(const d of validItems) {
+                await saveToInventory({ productName: d.productName, productCode: d.productCode, productStrength: d.productStrength||'', packSpec: d.packSpec||'', unit: d.unit, lotNumber: d.lotNumber, expiryDate: d.expiryDate, quantity: parseInt(d.quantity), importDate: new Date().toISOString().split('T')[0], createdAt: new Date().toISOString() }); c++;
+            }
+            showToast(`Đã nhập ${c} dòng`, 'success'); document.getElementById('preview-box').style.display='none';
+        }
 
         async function saveToInventory(item) {
             const exist = stockData.find(s => {
@@ -595,7 +684,9 @@
             if(exist) {
                 await refs.items.child(exist.id).update({ 
                     quantity: parseInt(exist.quantity) + parseInt(item.quantity), 
-                    unit: item.unit, 
+                    unit: item.unit,
+                    productStrength: item.productStrength || exist.productStrength || '',
+                    packSpec: item.packSpec || exist.packSpec || '',
                     productCode: item.productCode || exist.productCode, 
                     // CẬP NHẬT NGÀY NHẬP MỖI LẦN NHẬP THÊM (để cảnh báo "ĐÃ NHẬP HÔM NAY" hoạt động cho cả lô cũ)
                     importDate: item.importDate || new Date().toISOString().split('T')[0], 
@@ -606,16 +697,79 @@
             }
         }
 
+
+        // --- GDP/SOP SAFETY VERIFICATION ---
+        let safetyConfirmResolver = null;
+        const htmlSafe = (v) => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+        const displayValue = (v) => (v === undefined || v === null || String(v).trim() === '') ? '⚠️ CHƯA KHAI BÁO' : String(v);
+        const safetyChip = (label, value) => {
+            const missing = value === undefined || value === null || String(value).trim() === '';
+            return `<div class="safety-chip ${missing?'missing':''}"><span class="k">${htmlSafe(label)}</span><span class="v">${htmlSafe(displayValue(value))}</span></div>`;
+        };
+
+        window.openSafetyVerification = ({title, subtitle, actionType, items=[], destination='', date=''}) => {
+            const modal = document.getElementById('safety-verification-modal');
+            const ack = document.getElementById('safety-ack-check');
+            const confirmBtn = document.getElementById('safety-confirm-btn');
+            document.getElementById('safety-title').textContent = title || 'KIỂM TRA AN TOÀN TRƯỚC KHI GHI DỮ LIỆU KHO';
+            document.getElementById('safety-subtitle').textContent = subtitle || 'Đối chiếu lại chứng từ, nhãn thực tế và dữ liệu trước khi xác nhận.';
+            ack.checked = false; confirmBtn.disabled = true;
+            ack.onchange = () => { confirmBtn.disabled = !ack.checked; };
+
+            const first = items[0] || {};
+            const totalQty = items.reduce((sum, i) => sum + (parseInt(i.quantity ?? i.exportQty) || 0), 0);
+            const summary = document.getElementById('safety-summary');
+            if(items.length === 1) {
+                summary.innerHTML = [
+                    safetyChip('Thao tác', actionType),
+                    safetyChip('Mã SP', first.productCode),
+                    safetyChip('Tên sản phẩm', first.productName),
+                    safetyChip('Hàm lượng / Nồng độ', first.productStrength),
+                    safetyChip('Quy cách', first.packSpec),
+                    safetyChip('Đơn vị', first.unit),
+                    safetyChip('Số lô', first.lotNumber),
+                    safetyChip('Hạn dùng', first.expiryDate),
+                    safetyChip('Số lượng', first.quantity ?? first.exportQty),
+                    safetyChip(destination ? 'Nơi nhận' : 'Ngày chứng từ', destination || date)
+                ].join('');
+            } else {
+                summary.innerHTML = [
+                    safetyChip('Thao tác', actionType),
+                    safetyChip('Số dòng', items.length),
+                    safetyChip('Tổng số lượng', totalQty),
+                    safetyChip(destination ? 'Nơi nhận' : 'Ngày chứng từ', destination || date)
+                ].join('');
+            }
+
+            const box = document.getElementById('safety-detail-container');
+            if(items.length > 1) {
+                box.innerHTML = `<div class="safety-table-wrap"><table class="safety-table"><thead><tr><th>STT</th><th>Mã SP</th><th>Tên sản phẩm</th><th>Hàm lượng/NĐ</th><th>Quy cách/ĐVT</th><th>Số lô</th><th>Hạn dùng</th><th>Số lượng</th></tr></thead><tbody>${items.map((i,idx)=>`<tr><td>${idx+1}</td><td>${htmlSafe(i.productCode||'')}</td><td><b>${htmlSafe(displayValue(i.productName))}</b></td><td class="${i.productStrength?'':'critical-value'}">${htmlSafe(displayValue(i.productStrength))}</td><td>${htmlSafe(displayValue(i.packSpec || i.unit))}</td><td class="critical-value">${htmlSafe(displayValue(i.lotNumber))}</td><td class="critical-value">${htmlSafe(displayValue(i.expiryDate))}</td><td class="critical-value" style="text-align:center">${htmlSafe(displayValue(i.quantity ?? i.exportQty))}</td></tr>`).join('')}</tbody></table></div>`;
+            } else {
+                box.innerHTML = '';
+            }
+
+            modal.style.display = 'flex';
+            setTimeout(()=>ack.focus(), 50);
+            return new Promise(resolve => { safetyConfirmResolver = resolve; });
+        };
+
+        window.closeSafetyVerification = (confirmed) => {
+            document.getElementById('safety-verification-modal').style.display = 'none';
+            const resolver = safetyConfirmResolver;
+            safetyConfirmResolver = null;
+            if(resolver) resolver(!!confirmed);
+        };
+
         // --- EXPORT STOCK EXCEL ---
         window.exportStockExcel = () => {
             if(stockData.length === 0) return showToast('Không có dữ liệu tồn kho!', 'error');
             const headers = [['DANH SÁCH CHI TIẾT TỒN KHO - IDECO']];
             const dateRow = [[`Ngày xuất: ${new Date().toLocaleString('vi-VN')}`]];
-            const cols = [['STT', 'Mã Sản Phẩm', 'Tên Hàng Hóa', 'Đơn Vị', 'Số Lô', 'Hạn Dùng', 'Số Lượng Tồn']];
-            const body = stockData.map((d, i) => [i + 1, d.productCode || '', d.productName, d.unit || '', d.lotNumber, d.expiryDate, parseInt(d.quantity)]);
+            const cols = [['STT', 'Mã Sản Phẩm', 'Tên Hàng Hóa', 'Hàm Lượng/Nồng Độ', 'Quy Cách', 'Đơn Vị', 'Số Lô', 'Hạn Dùng', 'Số Lượng Tồn']];
+            const body = stockData.map((d, i) => [i + 1, d.productCode || '', d.productName, d.productStrength || '', d.packSpec || '', d.unit || '', d.lotNumber, d.expiryDate, parseInt(d.quantity)]);
             const fullData = [...headers, [''], ...dateRow, [''], ...cols, ...body];
             const ws = XLSX.utils.aoa_to_sheet(fullData);
-            ws['!cols'] = [{wch:5}, {wch:15}, {wch:35}, {wch:10}, {wch:15}, {wch:15}, {wch:15}];
+            ws['!cols'] = [{wch:5}, {wch:15}, {wch:35}, {wch:18}, {wch:28}, {wch:10}, {wch:15}, {wch:15}, {wch:15}];
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "TonKho");
             XLSX.writeFile(wb, `TonKho_IDECO_${today}.xlsx`);
@@ -655,7 +809,7 @@
             
             list.forEach(e => {
                 const item = document.createElement('div'); item.className = 'export-item';
-                item.innerHTML = `<div class="export-info"><strong>${e.productName}</strong> <span style="color:var(--secondary); font-weight:bold;">[${e.productCode || '--'}]</span> <span style="color:#666">(${e.unit || '-'})</span><br><small>Lô: ${e.lotNumber} | Hạn: ${e.expiryDate} | SL: <b style="color:var(--danger)">${e.quantity}</b></small><br><small style="color:#888">Ngày: ${e.exportDate} -> ${e.destination}</small></div><div class="export-actions"><button class="btn btn-warning" onclick="openEditExport('${e.id}')">Sửa</button><button class="btn btn-danger" onclick="deleteExport('${e.id}')">Xóa</button></div>`;
+                item.innerHTML = `<div class="export-info"><strong>${e.productName}</strong> <span style="color:var(--secondary); font-weight:bold;">[${e.productCode || '--'}]</span> <span style="color:#666">(${e.unit || '-'})</span><br><small>${e.productStrength ? 'Hàm lượng: '+e.productStrength+' | ' : ''}${e.packSpec ? 'Quy cách: '+e.packSpec+' | ' : ''}Lô: ${e.lotNumber} | Hạn: ${e.expiryDate} | SL: <b style="color:var(--danger)">${e.quantity}</b></small><br><small style="color:#888">Ngày: ${e.exportDate} -> ${e.destination}</small></div><div class="export-actions"><button class="btn btn-warning" onclick="openEditExport('${e.id}')">Sửa</button><button class="btn btn-danger" onclick="deleteExport('${e.id}')">Xóa</button></div>`;
                 div.appendChild(item);
             });
         }
@@ -688,11 +842,14 @@
             const newQty = parseInt(document.getElementById('edit-ex-qty').value);
             const newDest = document.getElementById('edit-ex-dest').value;
             const newDate = document.getElementById('edit-ex-date').value;
+            const ex = exportData.find(x => x.id === id);
             if(newQty < 0) return showToast('Số lượng không hợp lệ', 'error');
             const stk = stockData.find(s => s.id === relatedId);
             if(!stk) return alert('Lô hàng gốc đã hết hoặc bị xóa!');
             const stockAfterRevert = parseInt(stk.quantity) + oldQty;
             if(newQty > stockAfterRevert) return alert(`Không đủ tồn kho! Tối đa: ${stockAfterRevert}`);
+            const ok = await openSafetyVerification({ title:'KIỂM TRA TRƯỚC KHI SỬA PHIẾU XUẤT', subtitle:'Thay đổi số lượng phiếu xuất sẽ làm thay đổi tồn kho. Hãy đối chiếu chứng từ trước khi cập nhật.', actionType:'SỬA PHIẾU XUẤT', destination:newDest, date:newDate, items:[{...(ex||{}), quantity:newQty}] });
+            if(!ok) return;
             await refs.items.child(relatedId).update({ quantity: stockAfterRevert - newQty });
             await refs.exports.child(id).update({ quantity: newQty, destination: newDest, exportDate: newDate });
             document.getElementById('edit-export-modal').style.display = 'none';
@@ -723,12 +880,12 @@
             const title = [['BÁO CÁO LỊCH SỬ XUẤT KHO - IDECO']];
             const periodInfo = [[`Kỳ báo cáo: ${periodText}`]];
             const dateInfo = [[`Ngày xuất báo cáo: ${new Date().toLocaleString('vi-VN')}`], ['']];
-            const headers = [['Ngày Xuất', 'Mã SP', 'Tên Hàng Hóa', 'Đơn Vị', 'Số Lô', 'Hạn Dùng', 'Nơi Nhận', 'Số Lượng']];
-            const body = filteredExportData.map(e => [e.exportDate, e.productCode || '', e.productName, e.unit || '', e.lotNumber, e.expiryDate, e.destination, e.quantity]);
-            const footer = [['', '', '', '', '', '', '', ''],['', '', '', '', '', '', '', ''],['NGƯỜI LẬP BÁO CÁO', '', '', '', 'XÁC NHẬN CỦA QUẢN LÝ', '', '', ''],['(Phụ trách kho)', '', '', '', '(Quản lý Kế toán/Kho)', '', '', ''],['', '', '', '', '', '', '', ''],['', '', '', '', '', '', '', ''],[`${keeper}`, '', '', '', `${manager}`, '', '', '']];
+            const headers = [['Ngày Xuất', 'Mã SP', 'Tên Hàng Hóa', 'Hàm Lượng/Nồng Độ', 'Quy Cách', 'Đơn Vị', 'Số Lô', 'Hạn Dùng', 'Nơi Nhận', 'Số Lượng']];
+            const body = filteredExportData.map(e => [e.exportDate, e.productCode || '', e.productName, e.productStrength || '', e.packSpec || '', e.unit || '', e.lotNumber, e.expiryDate, e.destination, e.quantity]);
+            const footer = [Array(10).fill(''),Array(10).fill(''),['NGƯỜI LẬP BÁO CÁO','','','','','','XÁC NHẬN CỦA QUẢN LÝ','','',''],['(Phụ trách kho)','','','','','','(Quản lý Kế toán/Kho)','','',''],Array(10).fill(''),Array(10).fill(''),[`${keeper}`,'','','','','',`${manager}`,'','','']];
             const fullData = [...title, ...periodInfo, ...dateInfo, ...headers, ...body, ...footer];
             const ws = XLSX.utils.aoa_to_sheet(fullData);
-            ws['!cols'] = [{wch:15}, {wch:15}, {wch:30}, {wch:10}, {wch:15}, {wch:15}, {wch:20}, {wch:10}];
+            ws['!cols'] = [{wch:15}, {wch:15}, {wch:30}, {wch:18}, {wch:28}, {wch:10}, {wch:15}, {wch:15}, {wch:20}, {wch:10}];
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "LichSuXuat");
             const fileName = `LichSuXuat_${startDate || 'all'}_to_${endDate || 'all'}_${new Date().toISOString().slice(0,10)}.xlsx`;
@@ -768,7 +925,7 @@
                     document.querySelectorAll('.lot-selector').forEach(d=>d.classList.remove('active'));
                     el.classList.add('active');
                     currentExportLot=lot; 
-                    document.getElementById('selected-lot-info').innerHTML = `<b>${lot.productName}</b> - Lô: ${lot.lotNumber} (Hạn: ${lot.expiryDate}) - Tồn: ${lot.quantity}`;
+                    document.getElementById('selected-lot-info').innerHTML = `<b>${lot.productName}</b>${lot.productStrength ? ' - '+lot.productStrength : ''}${lot.packSpec ? ' - '+lot.packSpec : ''} - Lô: ${lot.lotNumber} (Hạn: ${lot.expiryDate}) - Tồn: ${lot.quantity}`;
                     document.getElementById('exp-qty').disabled=false; 
                     document.getElementById('exp-qty').max=lot.quantity; 
                     document.getElementById('exp-unit').value=lot.unit||''; 
@@ -785,12 +942,25 @@
             try {
                 const q = parseInt(document.getElementById('exp-qty').value);
                 if(!currentExportLot) { showToast('Chưa chọn lô hàng!', 'error'); return; }
+                if(!currentExportLot.lotNumber || !currentExportLot.expiryDate) { showToast('Lô hàng thiếu Số lô hoặc Hạn dùng. Không cho phép xuất kho!', 'error'); btn.disabled = false; return; }
                 const currentStock = parseInt(currentExportLot.quantity);
                 if(q > currentStock) { showToast(`Xuất kho vượt quá tồn kho! (Tồn: ${currentStock})`, 'error'); btn.disabled = false; return; }
                 if(q <= 0 || isNaN(q)) { showToast(`Số lượng xuất không hợp lệ!`, 'error'); btn.disabled = false; return; }
 
+                const destination = document.getElementById('exp-dest').value;
+                const exportDate = document.getElementById('exp-date').value;
+                const ok = await openSafetyVerification({
+                    title: 'KIỂM TRA TRƯỚC KHI XUẤT KHO',
+                    subtitle: 'Sắp trừ tồn kho thực tế. Hãy đối chiếu đúng sản phẩm, lô FEFO, hạn dùng và số lượng.',
+                    actionType: 'XUẤT KHO',
+                    destination,
+                    date: exportDate,
+                    items: [{...currentExportLot, quantity:q}]
+                });
+                if(!ok) { btn.disabled = false; return; }
+
                 await refs.exports.push({
-                    productName:currentExportLot.productName, productCode: currentExportLot.productCode, unit: currentExportLot.unit, lotNumber: currentExportLot.lotNumber, expiryDate: currentExportLot.expiryDate, quantity:q, destination:document.getElementById('exp-dest').value, exportDate:document.getElementById('exp-date').value, relatedId:currentExportLot.id
+                    productName:currentExportLot.productName, productCode: currentExportLot.productCode, productStrength: currentExportLot.productStrength||'', packSpec: currentExportLot.packSpec||'', unit: currentExportLot.unit, lotNumber: currentExportLot.lotNumber, expiryDate: currentExportLot.expiryDate, quantity:q, destination:destination, exportDate:exportDate, relatedId:currentExportLot.id
                 });
                 await refs.items.child(currentExportLot.id).update({quantity:currentStock - q});
                 showToast('Xuất OK','success'); 
@@ -874,7 +1044,7 @@
                     for (let batch of matches) {
                         if (reqQty <= 0) break;
                         let available = parseInt(batch.quantity); let take = Math.min(available, reqQty);
-                        bulkExportPreviewData.push({ isError: false, relatedId: batch.id, productCode: batch.productCode, productName: batch.productName, unit: batch.unit, lotNumber: batch.lotNumber, expiryDate: batch.expiryDate, exportQty: take, originalStock: available });
+                        bulkExportPreviewData.push({ isError: false, relatedId: batch.id, productCode: batch.productCode, productName: batch.productName, productStrength: batch.productStrength||'', packSpec: batch.packSpec||'', unit: batch.unit, lotNumber: batch.lotNumber, expiryDate: batch.expiryDate, exportQty: take, originalStock: available });
                         reqQty -= take;
                     }
                 }
@@ -898,16 +1068,26 @@
         window.executeBulkExport = async () => {
             if (bulkExportPreviewData.some(d => d.isError)) return alert('Vui lòng loại bỏ các dòng lỗi (màu đỏ) trước khi xuất kho!');
             if (bulkExportPreviewData.length === 0) return;
-            if (!confirm(`Bạn có chắc chắn xuất ${bulkExportPreviewData.length} mục không? Kho sẽ bị trừ ngay lập tức.`)) return;
+            const unsafeRows = bulkExportPreviewData.filter(d => !d.productName || !d.lotNumber || !d.expiryDate || !d.exportQty || d.exportQty <= 0);
+            if(unsafeRows.length > 0) return alert(`Có ${unsafeRows.length} dòng thiếu Tên SP / Số lô / Hạn dùng / Số lượng. Không cho phép trừ kho!`);
             const dest = document.getElementById('bulk-exp-dest').value || 'Khách lẻ/Không xác định';
             const date = document.getElementById('bulk-exp-date').value;
+            const ok = await openSafetyVerification({
+                title: 'KIỂM TRA TRƯỚC KHI TRỪ KHO HÀNG LOẠT',
+                subtitle: `Sắp trừ ${bulkExportPreviewData.length} dòng/lô khỏi kho. Hãy kiểm tra toàn bộ bảng trước khi xác nhận.`,
+                actionType: 'XUẤT KHO HÀNG LOẠT',
+                destination: dest,
+                date,
+                items: bulkExportPreviewData.map(i => ({...i, quantity:i.exportQty}))
+            });
+            if(!ok) return;
             let count = 0;
             for (let item of bulkExportPreviewData) {
                 const stockItem = stockData.find(s => s.id === item.relatedId);
                 if (stockItem) {
                     const currentQty = parseInt(stockItem.quantity);
                     if (currentQty >= item.exportQty) {
-                        await refs.exports.push({ productName: item.productName, productCode: item.productCode || '', unit: item.unit || '', lotNumber: item.lotNumber, expiryDate: item.expiryDate, quantity: item.exportQty, destination: dest, exportDate: date, relatedId: item.relatedId });
+                        await refs.exports.push({ productName: item.productName, productCode: item.productCode || '', productStrength: item.productStrength||'', packSpec: item.packSpec||'', unit: item.unit || '', lotNumber: item.lotNumber, expiryDate: item.expiryDate, quantity: item.exportQty, destination: dest, exportDate: date, relatedId: item.relatedId });
                         await refs.items.child(item.relatedId).update({ quantity: currentQty - item.exportQty });
                         count++;
                     }
@@ -1056,11 +1236,33 @@
 
         // UTILS
         function parseDate(v) { if(!v)return ''; if(typeof v==='number') return new Date((v-25569)*86400000).toISOString().split('T')[0]; if(v.includes('/')){const p=v.split('/'); if(p.length===3) return `${p[2]}-${p[1]}-${p[0]}`;} return v; }
-        window.saveManual = async () => { const item={ productName: document.getElementById('imp-name').value.trim(), productCode: document.getElementById('imp-code').value, unit: document.getElementById('imp-unit').value, lotNumber: document.getElementById('imp-lot').value, expiryDate: document.getElementById('imp-exp').value, quantity: document.getElementById('imp-qty').value, importDate: document.getElementById('imp-date').value, createdAt: new Date().toISOString() }; if(!item.productName||!item.lotNumber||!item.quantity) return showToast('Thiếu thông tin','error'); await saveToInventory(item); showToast('OK','success'); ['imp-name','imp-code','imp-unit','imp-lot','imp-qty'].forEach(id=>document.getElementById(id).value=''); }
-        function renderStockTable() { const tb=document.getElementById('stock-body'); tb.innerHTML=''; const term=document.getElementById('search-stock').value.toLowerCase(); stockData.filter(d=>(d.productName||'').toLowerCase().includes(term)).forEach((d,i)=>{ tb.innerHTML+=`<tr><td>${i+1}</td><td>${d.productCode||''}</td><td><b>${d.productName}</b></td><td>${d.unit||''}</td><td>${d.lotNumber}</td><td>${d.expiryDate}</td><td>${d.quantity}</td><td><button class="btn btn-warning" onclick="editStock('${d.id}')">Sửa</button> <button class="btn btn-danger" onclick="if(confirm('Xóa?')) refs.items.child('${d.id}').remove()">Xóa</button></td></tr>`; }); }
+        window.saveManual = async () => {
+            const item={ productName: document.getElementById('imp-name').value.trim(), productCode: document.getElementById('imp-code').value, productStrength: document.getElementById('imp-strength').value.trim(), packSpec: document.getElementById('imp-pack').value.trim(), unit: document.getElementById('imp-unit').value, lotNumber: document.getElementById('imp-lot').value.trim(), expiryDate: document.getElementById('imp-exp').value, quantity: parseInt(document.getElementById('imp-qty').value), importDate: document.getElementById('imp-date').value, createdAt: new Date().toISOString() };
+            if(!item.productName || !item.lotNumber || !item.expiryDate || !item.quantity || item.quantity <= 0) return showToast('Thiếu Tên SP / Số lô / Hạn dùng / Số lượng!', 'error');
+            const ok = await openSafetyVerification({
+                title: 'KIỂM TRA TRƯỚC KHI LƯU NHẬP KHO',
+                subtitle: 'Dữ liệu này sẽ được cộng vào tồn kho. Hãy đối chiếu trực tiếp với hàng và chứng từ nhập.',
+                actionType: 'NHẬP KHO',
+                items: [item],
+                date: item.importDate
+            });
+            if(!ok) return;
+            await saveToInventory(item);
+            showToast('Đã lưu nhập kho an toàn', 'success');
+            ['imp-name','imp-code','imp-strength','imp-pack','imp-unit','imp-lot','imp-qty'].forEach(id=>document.getElementById(id).value='');
+        }
+        function renderStockTable() { const tb=document.getElementById('stock-body'); tb.innerHTML=''; const term=document.getElementById('search-stock').value.toLowerCase(); stockData.filter(d=>(d.productName||'').toLowerCase().includes(term)).forEach((d,i)=>{ tb.innerHTML+=`<tr><td>${i+1}</td><td>${d.productCode||''}</td><td><b>${d.productName}</b></td><td>${d.productStrength||'<span style="color:#b91c1c">Chưa khai báo</span>'}</td><td>${d.packSpec||'<span style="color:#b91c1c">Chưa khai báo</span>'}</td><td>${d.unit||''}</td><td>${d.lotNumber}</td><td>${d.expiryDate}</td><td><b>${d.quantity}</b></td><td><button class="btn btn-warning" onclick="editStock('${d.id}')">Sửa</button> <button class="btn btn-danger" onclick="requestDeleteStock('${d.id}')">Xóa</button></td></tr>`; }); }
         document.getElementById('search-stock').addEventListener('input', renderStockTable);
-        window.editStock=(id)=>{ const d=stockData.find(x=>x.id===id); document.getElementById('edit-id').value=id; document.getElementById('edit-name').value=d.productName; document.getElementById('edit-code').value=d.productCode; document.getElementById('edit-unit').value=d.unit; document.getElementById('edit-lot').value=d.lotNumber; document.getElementById('edit-exp').value=d.expiryDate; document.getElementById('edit-qty').value=d.quantity; document.getElementById('edit-modal').style.display='flex'; }
-        window.saveEdit=async()=>{ const id=document.getElementById('edit-id').value; await refs.items.child(id).update({ productName:document.getElementById('edit-name').value, productCode:document.getElementById('edit-code').value, unit:document.getElementById('edit-unit').value, lotNumber:document.getElementById('edit-lot').value, expiryDate:document.getElementById('edit-exp').value, quantity:parseInt(document.getElementById('edit-qty').value) }); document.getElementById('edit-modal').style.display='none'; showToast('Đã lưu','success'); }
+        window.requestDeleteStock=async(id)=>{ const d=stockData.find(x=>x.id===id); if(!d) return; const ok=await openSafetyVerification({ title:'CẢNH BÁO XÓA DÒNG TỒN KHO', subtitle:'Dòng này sẽ bị xóa khỏi dữ liệu tồn kho. Chỉ xác nhận khi đã đối chiếu và thật sự cần xóa.', actionType:'XÓA TỒN KHO', items:[d] }); if(!ok) return; await refs.items.child(id).remove(); showToast('Đã xóa dòng tồn kho','success'); };
+        window.editStock=(id)=>{ const d=stockData.find(x=>x.id===id); document.getElementById('edit-id').value=id; document.getElementById('edit-name').value=d.productName; document.getElementById('edit-code').value=d.productCode; document.getElementById('edit-unit').value=d.unit; document.getElementById('edit-strength').value=d.productStrength||''; document.getElementById('edit-pack').value=d.packSpec||''; document.getElementById('edit-lot').value=d.lotNumber; document.getElementById('edit-exp').value=d.expiryDate; document.getElementById('edit-qty').value=d.quantity; document.getElementById('edit-modal').style.display='flex'; }
+        window.saveEdit=async()=>{
+            const id=document.getElementById('edit-id').value;
+            const item={ productName:document.getElementById('edit-name').value.trim(), productCode:document.getElementById('edit-code').value.trim(), unit:document.getElementById('edit-unit').value.trim(), productStrength:document.getElementById('edit-strength').value.trim(), packSpec:document.getElementById('edit-pack').value.trim(), lotNumber:document.getElementById('edit-lot').value.trim(), expiryDate:document.getElementById('edit-exp').value, quantity:parseInt(document.getElementById('edit-qty').value) };
+            if(!item.productName || !item.lotNumber || !item.expiryDate || !item.quantity || item.quantity < 0) return showToast('Thiếu thông tin kiểm soát bắt buộc!', 'error');
+            const ok=await openSafetyVerification({ title:'KIỂM TRA TRƯỚC KHI SỬA TỒN KHO', subtitle:'Sửa dữ liệu tồn kho là thao tác nhạy cảm. Hãy đối chiếu lại trước khi ghi đè.', actionType:'SỬA TỒN KHO', items:[item] });
+            if(!ok) return;
+            await refs.items.child(id).update(item); document.getElementById('edit-modal').style.display='none'; showToast('Đã lưu sau khi kiểm tra','success');
+        }
         document.getElementById('master-upload').addEventListener('change', e=>{ const f=e.target.files[0]; const r=new FileReader(); r.onload=evt=>{ const wb=XLSX.read(new Uint8Array(evt.target.result),{type:'array'}); const json=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]); refs.master.push({fileName:f.name, data:json}); showToast('OK','success'); }; r.readAsArrayBuffer(f); });
         function renderMasterFilesList(files){ document.getElementById('master-files-list').innerHTML=files.map(f=>`<div>📄 ${f.fileName} <a href="#" onclick="refs.master.child('${f.id}').remove()" style="color:red">Xóa</a></div>`).join(''); }
         
