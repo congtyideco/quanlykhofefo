@@ -162,7 +162,18 @@
 
         <div id="tab1" class="tab-content active">
             <div id="master-section" style="display:none; background:#fffbeb; padding:15px; margin-bottom:20px; border-radius:8px; border:1px solid #fbbf24;">
-                <h3 style="margin-top:0; color:#92400e">Dữ liệu Master</h3>
+                <h3 style="margin-top:0; color:#92400e">Dữ liệu Master Sản Phẩm</h3>
+                <p style="font-size:0.88rem; color:#78350f; margin:6px 0 10px; line-height:1.5">
+                    File Master chuẩn gồm: <b>Mã SP · Tên SP · Đơn Vị · Hàm Lượng / Nồng Độ · Quy Cách</b>.
+                    Sau khi upload, khi chọn Tên hàng hóa hệ thống sẽ tự động điền các thông tin này.
+                </p>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px">
+                    <button type="button" class="btn btn-primary" onclick="downloadMasterTemplate()">⬇️ Tải Template Master Excel</button>
+                    <span style="font-size:0.8rem; color:#92400e">Điền đúng dữ liệu theo hồ sơ/nhãn sản phẩm trước khi upload.</span>
+                </div>
+                <div style="background:#fff7ed;border:1px solid #fdba74;color:#9a3412;padding:8px 10px;border-radius:6px;margin:7px 0 10px;font-size:0.82rem;line-height:1.45">
+                    🔒 <b>Chế độ 1 Master duy nhất:</b> File Master mới sẽ <b>THAY THẾ HOÀN TOÀN</b> Master cũ, không cộng dồn. Khi xóa Master, bộ nhớ gợi ý cũ cũng được làm sạch trước khi nạp file mới.
+                </div>
                 <input type="file" id="master-upload" accept=".xlsx, .xls, .csv">
                 <div id="master-status" style="margin-top:10px; font-weight:bold; color:#059669;"></div>
                 <div id="master-files-list" style="margin-top:10px;"></div>
@@ -562,18 +573,56 @@
         // LOGIC FUNCTIONS
         function cleanStr(str) { if(!str) return ''; return str.toString().toLowerCase().replace(/^th[_\-\s]+|thuốc\s+/g, '').trim(); }
         function cleanCode(str) { if(!str) return ''; return str.toString().trim().toLowerCase(); }
-        function findColumnValue(row, names) { const keys=Object.keys(row); const lower=keys.map(k=>k.toLowerCase().trim()); for(const n of names) { const idx=lower.indexOf(n.toLowerCase()); if(idx!==-1) return row[keys[idx]]; } return null; }
-
-        function refreshMasterData(files) {
-            const map = new Map();
-            files.forEach(f => { if(f.data) f.data.forEach(r => { const name = findColumnValue(r, ['Tên Hàng Hóa','Tên','Product Name']); const code = findColumnValue(r, ['Mã SP','Mã','Code']); const unit = findColumnValue(r, ['Đơn Vị','Unit']); const strength = findColumnValue(r, ['Hàm Lượng','Hàm lượng','Nồng Độ','Nồng độ','Strength']); const packSpec = findColumnValue(r, ['Quy Cách','Quy cách','Quy cách đóng gói','Pack','Packaging']); if(name) { const k=cleanStr(name); map.set(k, { name: name, code: code||'', unit: unit||'', strength: strength||'', packSpec: packSpec||'', searchKey: k }); } }); });
-            stockData.forEach(s => { if(s.productName) { const k=cleanStr(s.productName); if(!map.has(k)) map.set(k, { name: s.productName, code: s.productCode||'', unit: s.unit||'', strength: s.productStrength||'', packSpec: s.packSpec||'', searchKey: k }); } });
-            masterData = Array.from(map.values());
-            document.getElementById('master-status').innerText = `✅ Đã học ${masterData.length} mã.`;
-            document.getElementById('master-code-list').innerHTML = masterData.filter(m => m.code).map(m => `<option value="${m.code}">${m.name}</option>`).join('');
+        function normalizeHeader(str) {
+            return (str ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/đ/g,'d').replace(/[^a-z0-9]/g,'');
+        }
+        function findColumnValue(row, names) {
+            if(!row) return null;
+            const keys = Object.keys(row);
+            const normalizedKeys = keys.map(k => normalizeHeader(k));
+            for(const n of names) {
+                const idx = normalizedKeys.indexOf(normalizeHeader(n));
+                if(idx !== -1) return row[keys[idx]];
+            }
+            return null;
+        }
+        function escapeHtml(value) {
+            return (value ?? '').toString().replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
         }
 
-        function findBestMatch(inputName) { if (!inputName) return null; const cleanInput = cleanStr(inputName); let match = masterData.find(m => m.searchKey === cleanInput); if (match) return match; return masterData.find(m => cleanInput.includes(m.searchKey) || m.searchKey.includes(cleanInput)); }
+        function refreshMasterData(files) {
+            // MASTER LÀ NGUỒN ĐỘC LẬP: tuyệt đối không lấy dữ liệu tồn kho cũ bù ngược vào Master.
+            // Nhờ vậy khi xóa excelFiles, danh mục Master thật sự trở về rỗng và file mới không bị trộn dữ liệu cũ.
+            const map = new Map();
+            files.forEach(f => {
+                if(!Array.isArray(f.data)) return;
+                // Hỗ trợ cả cấu trúc Firebase mới (key an toàn) và dữ liệu Master cũ nếu có.
+                f.data.forEach(r => {
+                    const name = r.productName ?? findColumnValue(r, ['Tên SP','Tên Sản Phẩm','Tên Hàng Hóa','Tên','Product Name','Product']);
+                    const code = r.productCode ?? findColumnValue(r, ['Mã SP','Mã Sản Phẩm','Mã','Code','SKU']);
+                    const unit = r.unit ?? findColumnValue(r, ['Đơn Vị','Đơn Vị Tính','ĐVT','Unit']);
+                    const strength = r.strength ?? r.productStrength ?? findColumnValue(r, ['Hàm Lượng / Nồng Độ','Hàm Lượng - Nồng Độ','Hàm Lượng','Hàm lượng','Nồng Độ','Nồng độ','Strength','Concentration']);
+                    const packSpec = r.packSpec ?? findColumnValue(r, ['Quy Cách','Quy cách','Quy Cách Đóng Gói','Quy cách đóng gói','Pack','Packaging']);
+                    if(name) {
+                        const k = cleanStr(name);
+                        const identity = code ? `code:${cleanCode(code)}` : `name:${k}`;
+                        map.set(identity, { name, code:code||'', unit:unit||'', strength:strength||'', packSpec:packSpec||'', searchKey:k });
+                    }
+                });
+            });
+            masterData = Array.from(map.values());
+            const status = document.getElementById('master-status');
+            document.getElementById('master-code-list').innerHTML = masterData.filter(m => m.code).map(m => `<option value="${escapeHtml(m.code)}">${escapeHtml(m.name)}</option>`).join('');
+            if(masterData.length === 0) {
+                status.innerHTML = '🧹 <b>Master đang trống.</b> Dữ liệu Master cũ đã được làm sạch; có thể upload file mới.';
+                status.style.color = '#b45309';
+            } else {
+                status.innerHTML = `✅ Master đang hoạt động: <b>${masterData.length}</b> sản phẩm.`;
+                status.style.color = '#059669';
+            }
+        }
+
+        function findBestMatch(inputName) { if (!inputName) return null; const cleanInput = cleanStr(inputName); const exact = masterData.filter(m => m.searchKey === cleanInput); if (exact.length === 1) return exact[0]; const partial = masterData.filter(m => cleanInput.includes(m.searchKey) || m.searchKey.includes(cleanInput)); return partial.length === 1 ? partial[0] : null; }
 
         // AUTOCOMPLETE
         function showSuggestions(input, type, container, callback) {
@@ -584,13 +633,31 @@
 
             matches.forEach(m => {
                 const div = document.createElement('div'); div.className = 'autocomplete-item';
-                div.innerHTML = `<div><strong>${m.name}</strong></div><small style="color:#059669">${m.code||'--'}</small>`;
+                const detail = [m.unit, m.strength, m.packSpec].filter(Boolean).join(' · ');
+                div.innerHTML = `<div><strong>${escapeHtml(m.name)}</strong>${detail ? `<div style="font-size:0.76rem;color:#64748b;margin-top:2px">${escapeHtml(detail)}</div>` : ''}</div><small style="color:#059669;white-space:nowrap;margin-left:8px">${escapeHtml(m.code||'--')}</small>`;
                 div.onmousedown = (e) => { e.preventDefault(); callback(m); container.innerHTML = ''; };
                 container.appendChild(div);
             });
         }
 
-        document.getElementById('imp-name').addEventListener('input', function() { showSuggestions(this, 'name', document.getElementById('imp-suggest'), (m) => { this.value = m.name; document.getElementById('imp-code').value = m.code||''; document.getElementById('imp-unit').value = m.unit||''; document.getElementById('imp-strength').value = m.strength||''; document.getElementById('imp-pack').value = m.packSpec||''; }); });
+        function applyMasterToManual(m) {
+            if(!m) return;
+            document.getElementById('imp-name').value = m.name || '';
+            document.getElementById('imp-code').value = m.code || '';
+            document.getElementById('imp-unit').value = m.unit || '';
+            document.getElementById('imp-strength').value = m.strength || '';
+            document.getElementById('imp-pack').value = m.packSpec || '';
+            ['imp-code','imp-unit','imp-strength','imp-pack'].forEach(id => {
+                const el=document.getElementById(id); el.style.background = el.value ? '#ecfdf5' : '#fff7ed';
+            });
+        }
+        document.getElementById('imp-name').addEventListener('input', function() {
+            showSuggestions(this, 'name', document.getElementById('imp-suggest'), applyMasterToManual);
+        });
+        document.getElementById('imp-name').addEventListener('change', function() {
+            const exact = masterData.find(m => m.searchKey === cleanStr(this.value));
+            if(exact) applyMasterToManual(exact);
+        });
         document.getElementById('imp-name').addEventListener('blur', () => setTimeout(() => document.getElementById('imp-suggest').innerHTML='', 200));
 
         // --- IMPORT LOGIC ---
@@ -605,7 +672,7 @@
                 const hasHeader=rows[0].join(' ').toLowerCase().includes('tên');
                 if(hasHeader) {
                     const json=XLSX.utils.sheet_to_json(ws);
-                    data=json.map(r=>({ name:findColumnValue(r,['Tên Hàng Hóa','Tên']), unit:findColumnValue(r,['Đơn Vị','Unit']), strength:findColumnValue(r,['Hàm Lượng','Hàm lượng','Nồng Độ','Nồng độ','Strength']), packSpec:findColumnValue(r,['Quy Cách','Quy cách','Quy cách đóng gói','Pack','Packaging']), lot:findColumnValue(r,['Số Lô','Lô']), exp:parseDate(findColumnValue(r,['Hạn Sử Dụng','Hạn'])), qty:findColumnValue(r,['Số Lượng','SL']) }));
+                    data=json.map(r=>({ name:findColumnValue(r,['Tên SP','Tên Sản Phẩm','Tên Hàng Hóa','Tên']), unit:findColumnValue(r,['Đơn Vị','Đơn Vị Tính','ĐVT','Unit']), strength:findColumnValue(r,['Hàm Lượng / Nồng Độ','Hàm Lượng','Hàm lượng','Nồng Độ','Nồng độ','Strength','Concentration']), packSpec:findColumnValue(r,['Quy Cách','Quy cách','Quy Cách Đóng Gói','Quy cách đóng gói','Pack','Packaging']), lot:findColumnValue(r,['Số Lô','Lô']), exp:parseDate(findColumnValue(r,['Hạn Sử Dụng','Hạn'])), qty:findColumnValue(r,['Số Lượng','SL']) }));
                 } else {
                     data=rows.map(r=>({ name:r[1], unit:r[2], lot:r[3], exp:parseDate(r[4]), qty:r[5] })).filter(d=>d.name);
                 }
@@ -1263,8 +1330,165 @@
             if(!ok) return;
             await refs.items.child(id).update(item); document.getElementById('edit-modal').style.display='none'; showToast('Đã lưu sau khi kiểm tra','success');
         }
-        document.getElementById('master-upload').addEventListener('change', e=>{ const f=e.target.files[0]; const r=new FileReader(); r.onload=evt=>{ const wb=XLSX.read(new Uint8Array(evt.target.result),{type:'array'}); const json=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]); refs.master.push({fileName:f.name, data:json}); showToast('OK','success'); }; r.readAsArrayBuffer(f); });
-        function renderMasterFilesList(files){ document.getElementById('master-files-list').innerHTML=files.map(f=>`<div>📄 ${f.fileName} <a href="#" onclick="refs.master.child('${f.id}').remove()" style="color:red">Xóa</a></div>`).join(''); }
+        window.downloadMasterTemplate = () => {
+            const wb = XLSX.utils.book_new();
+            const masterRows = [
+                ['Mã SP','Tên SP','Đơn Vị','Hàm Lượng / Nồng Độ','Quy Cách'],
+                ['TH_VIDU_01','TÊN SẢN PHẨM MẪU','Hộp','500 mg','Hộp 10 vỉ x 10 viên']
+            ];
+            const ws = XLSX.utils.aoa_to_sheet(masterRows);
+            ws['!cols'] = [{wch:18},{wch:42},{wch:15},{wch:24},{wch:30}];
+            XLSX.utils.book_append_sheet(wb, ws, 'DANH MỤC SẢN PHẨM');
+            const guide = XLSX.utils.aoa_to_sheet([
+                ['HƯỚNG DẪN TEMPLATE MASTER IDECO'],
+                ['1','Tên SP là trường bắt buộc để tìm/chọn sản phẩm.'],
+                ['2','Mã SP nên duy nhất cho từng sản phẩm.'],
+                ['3','Đơn Vị, Hàm Lượng / Nồng Độ, Quy Cách phải đối chiếu đúng hồ sơ/nhãn sản phẩm.'],
+                ['4','Không đổi tên 5 cột chuẩn ở sheet DANH MỤC SẢN PHẨM.']
+            ]);
+            guide['!cols'] = [{wch:8},{wch:90}];
+            XLSX.utils.book_append_sheet(wb, guide, 'HƯỚNG DẪN');
+            XLSX.writeFile(wb, 'IDECO_TEMPLATE_MASTER_SAN_PHAM.xlsx');
+        };
+
+        document.getElementById('master-upload').addEventListener('change', e=>{
+            const f=e.target.files[0]; if(!f) return;
+            const status=document.getElementById('master-status');
+            const r=new FileReader();
+            r.onload=async evt=>{
+                try {
+                    const wb=XLSX.read(new Uint8Array(evt.target.result),{type:'array'});
+                    const ws=wb.Sheets[wb.SheetNames[0]];
+                    const json=XLSX.utils.sheet_to_json(ws,{defval:''});
+                    if(!json.length) throw new Error('File không có dữ liệu.');
+                    // QUAN TRỌNG: Firebase RTDB cấm . # $ / [ ] trong TÊN KEY.
+                    // Vì vậy KHÔNG lưu nguyên tên cột Excel như "Hàm Lượng / Nồng Độ" làm key.
+                    // Excel vẫn được phép dùng tiêu đề tiếng Việt; trước khi push ta chuyển sang key nội bộ an toàn.
+                    const canonical = json.map(row => ({
+                        productCode: findColumnValue(row,['Mã SP','Mã Sản Phẩm','Mã','Code','SKU']) || '',
+                        productName: findColumnValue(row,['Tên SP','Tên Sản Phẩm','Tên Hàng Hóa','Tên','Product Name','Product']) || '',
+                        unit: findColumnValue(row,['Đơn Vị','Đơn Vị Tính','ĐVT','Unit']) || '',
+                        strength: findColumnValue(row,['Hàm Lượng / Nồng Độ','Hàm Lượng - Nồng Độ','Hàm Lượng','Hàm lượng','Nồng Độ','Nồng độ','Strength','Concentration']) || '',
+                        packSpec: findColumnValue(row,['Quy Cách','Quy cách','Quy Cách Đóng Gói','Quy cách đóng gói','Pack','Packaging']) || ''
+                    })).filter(row => row.productName);
+                    if(!canonical.length) throw new Error('Không tìm thấy cột Tên SP/Tên Sản Phẩm/Tên Hàng Hóa. Hãy dùng Template Master IDECO.');
+                    const missingUnit = canonical.filter(x=>!x.unit).length;
+                    const missingStrength = canonical.filter(x=>!x.strength).length;
+                    const missingPack = canonical.filter(x=>!x.packSpec).length;
+
+                    // CHẾ ĐỘ 1 MASTER DUY NHẤT: nếu còn Master cũ thì file mới sẽ thay thế hoàn toàn.
+                    const oldMasterSnap = await refs.master.once('value');
+                    if(oldMasterSnap.exists()) {
+                        const replaceOk = confirm(
+                            '⚠️ ĐANG CÓ MASTER CŨ TRÊN FIREBASE.\n\n' +
+                            'Upload file mới sẽ XÓA SẠCH toàn bộ Master cũ và thay bằng file: ' + f.name + '.\n' +
+                            'TỒN KHO và LỊCH SỬ XUẤT KHÔNG bị xóa.\n\n' +
+                            'Bạn đã kiểm tra file mới và muốn tiếp tục?'
+                        );
+                        if(!replaceOk) {
+                            status.innerText = 'Đã hủy upload. Master cũ vẫn được giữ nguyên.';
+                            status.style.color = '#b45309';
+                            e.target.value='';
+                            return;
+                        }
+                        await refs.master.remove();
+                        clearMasterDependentUI();
+                    }
+
+                    await refs.master.push({
+                        fileName:f.name,
+                        uploadedAt:new Date().toISOString(),
+                        schemaVersion:3,
+                        replaceMode:true,
+                        data:canonical
+                    });
+                    status.innerHTML = `✅ Đã nạp <b>${canonical.length}</b> sản phẩm. Thiếu Đơn vị: <b>${missingUnit}</b> · Hàm lượng/Nồng độ: <b>${missingStrength}</b> · Quy cách: <b>${missingPack}</b>.`;
+                    status.style.color = (missingUnit || missingStrength || missingPack) ? '#b45309' : '#059669';
+                    showToast(`Đã nạp Master ${canonical.length} sản phẩm`,'success');
+                    e.target.value='';
+                } catch(err) {
+                    console.error(err); status.innerText='❌ '+err.message; status.style.color='#dc2626'; showToast(err.message,'error');
+                }
+            };
+            r.readAsArrayBuffer(f);
+        });
+        function clearMasterDependentUI() {
+            // Xóa mọi cache/gợi ý/phần xem trước có thể còn giữ dữ liệu từ Master cũ trong phiên trình duyệt.
+            masterData = [];
+            document.getElementById('master-code-list').innerHTML = '';
+            ['imp-suggest','rpt-search-suggest'].forEach(id => {
+                const el = document.getElementById(id); if(el) el.innerHTML = '';
+            });
+
+            // Các trường được Master tự động điền phải được làm rỗng để không vô tình dùng thông số cũ.
+            ['imp-name','imp-code','imp-unit','imp-strength','imp-pack'].forEach(id => {
+                const el = document.getElementById(id); if(el) el.value = '';
+            });
+
+            // Preview nhập hàng loạt có thể đã được soi chiếu bằng Master cũ => hủy preview đó.
+            previewData = [];
+            const previewBody = document.getElementById('preview-body'); if(previewBody) previewBody.innerHTML = '';
+            const previewBox = document.getElementById('preview-box'); if(previewBox) previewBox.style.display = 'none';
+            const pasteArea = document.getElementById('paste-area'); if(pasteArea) pasteArea.value = '';
+            const importFile = document.getElementById('import-file'); if(importFile) importFile.value = '';
+        }
+
+        window.deleteMasterFile = async (id, fileName='Master') => {
+            const ok = confirm(
+                `⚠️ XÓA MASTER: ${fileName}\n\n` +
+                'Dữ liệu của file này sẽ bị xóa khỏi Firebase. Nếu đây là Master cuối cùng, danh mục gợi ý Master sẽ được làm sạch hoàn toàn.\n' +
+                'TỒN KHO và LỊCH SỬ XUẤT KHÔNG bị xóa.\n\nTiếp tục?'
+            );
+            if(!ok) return;
+            try {
+                await refs.master.child(id).remove();
+                const remain = await refs.master.once('value');
+                if(!remain.exists()) clearMasterDependentUI();
+                showToast(remain.exists() ? 'Đã xóa Master đã chọn' : 'Đã xóa sạch Master cũ','success');
+            } catch(err) {
+                console.error(err);
+                showToast('Không xóa được Master: '+err.message,'error');
+            }
+        };
+
+        window.deleteAllMasterFiles = async () => {
+            const snap = await refs.master.once('value');
+            if(!snap.exists()) {
+                clearMasterDependentUI();
+                return showToast('Master đã trống, không còn dữ liệu cũ','success');
+            }
+            const ok = confirm(
+                '🧹 XÓA SẠCH TOÀN BỘ MASTER?\n\n' +
+                'Hệ thống sẽ xóa toàn bộ nhánh excelFiles trên Firebase, xóa cache Master, danh sách gợi ý và preview đang lấy từ Master cũ.\n' +
+                'TỒN KHO và LỊCH SỬ XUẤT KHÔNG bị xóa.\n\nChỉ thực hiện khi chuẩn bị nạp một Master mới.'
+            );
+            if(!ok) return;
+            try {
+                await refs.master.remove();
+                clearMasterDependentUI();
+                document.getElementById('master-upload').value = '';
+                showToast('Đã XÓA SẠCH Master. Có thể nạp file mới.','success');
+            } catch(err) {
+                console.error(err);
+                showToast('Lỗi xóa sạch Master: '+err.message,'error');
+            }
+        };
+
+        function renderMasterFilesList(files){
+            const host = document.getElementById('master-files-list');
+            if(!files.length) {
+                host.innerHTML = `<div style="padding:8px 10px;background:#fff;border:1px dashed #f59e0b;border-radius:6px;color:#92400e;font-size:0.82rem">🧹 Không còn file Master trên Firebase. Sẵn sàng nạp Master mới.</div>`;
+                return;
+            }
+            const total = files.reduce((sum,f)=>sum+(Array.isArray(f.data)?f.data.length:0),0);
+            const header = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 5px;padding:8px;background:#fff7ed;border:1px solid #fdba74;border-radius:6px"><span style="font-size:0.82rem;color:#9a3412"><b>${files.length}</b> file Master · tổng ${total} dòng</span><button type="button" class="btn btn-danger" onclick="deleteAllMasterFiles()">🧹 XÓA SẠCH MASTER</button></div>`;
+            const rows = files.map(f => {
+                const count = Array.isArray(f.data) ? f.data.length : 0;
+                const safeName = escapeHtml(f.fileName||'Master');
+                return `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:7px 8px;margin-top:5px;background:#fff;border:1px solid #fde68a;border-radius:6px"><span>📄 <b>${safeName}</b> <small style="color:#64748b">(${count} SP)</small></span><a href="#" onclick="event.preventDefault(); deleteMasterFile('${f.id}')" style="color:#dc2626;font-weight:700">Xóa file</a></div>`;
+            }).join('');
+            host.innerHTML = header + rows;
+        }
         
         window.switchTab=(id,el)=>{ document.querySelectorAll('.tab-content').forEach(d=>d.style.display='none'); document.getElementById(id).style.display='block'; document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); }
         window.toggleMode=(m)=>{ document.getElementById('mode-paste').style.display=m==='paste'?'block':'none'; document.getElementById('mode-file').style.display=m==='file'?'block':'none'; }
