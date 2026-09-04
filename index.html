@@ -145,7 +145,33 @@
     </style>
 </head>
 <body>
+    <!-- LOCAL FILE / FRAME SAFETY GUARD -->
+    <script>
+    (function(){
+        function showLocalFrameNotice(){
+            if (window.self === window.top) return;
+            var wrap=document.createElement('div');
+            wrap.id='ideco-local-frame-notice';
+            wrap.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.94);display:flex;align-items:center;justify-content:center;padding:20px;font-family:Segoe UI,Arial,sans-serif';
+            var box=document.createElement('div');
+            box.style.cssText='max-width:620px;background:#fff;border-radius:14px;padding:22px;box-shadow:0 25px 70px rgba(0,0,0,.35);line-height:1.55;color:#0f172a';
+            var isFile=location.protocol==='file:';
+            box.innerHTML='<h2 style="margin:0 0 10px;color:#b91c1c">⚠️ File đang bị mở bên trong Frame</h2>'+
+              '<p style="margin:0 0 12px">Chrome chặn truy cập giữa các trang <b>file:///</b> vì mỗi file được xem như một security origin riêng. Đây không phải lỗi dữ liệu kho.</p>'+
+              '<p style="margin:0 0 14px">Hãy mở ứng dụng ở <b>tab/cửa sổ riêng</b>. Nếu cần nhúng vào ứng dụng khác, hãy chạy thư mục bằng <b>http://localhost</b> hoặc đưa lên website HTTPS thay vì nhúng đường dẫn file:///.</p>'+
+              '<button id="ideco-open-new-tab" style="width:100%;border:0;border-radius:8px;background:#2563eb;color:white;padding:11px 14px;font-weight:700;cursor:pointer">MỞ ỨNG DỤNG Ở TAB RIÊNG</button>'+
+              (isFile?'<div style="margin-top:10px;font-size:12px;color:#64748b;word-break:break-all">'+location.href.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</div>':'');
+            wrap.appendChild(box); document.documentElement.appendChild(wrap);
+            box.querySelector('#ideco-open-new-tab').onclick=function(){
+                var w=window.open(location.href,'_blank','noopener,noreferrer');
+                if(!w){ alert('Trình duyệt đang chặn cửa sổ mới. Hãy nhấp chuột phải vào file HTML và chọn Open with Chrome/Edge.'); }
+            };
+        }
+        if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',showLocalFrameNotice); else showLocalFrameNotice();
+    })();
+    </script>
     <datalist id="master-code-list"></datalist>
+    <datalist id="master-name-list"></datalist>
 
     <div class="container">
         <header>
@@ -184,7 +210,7 @@
                     <div class="card-header">A. Nhập Kho Thủ Công</div>
                     <label>Tên Hàng Hóa (*)</label>
                     <div class="autocomplete-wrapper">
-                        <input type="text" id="imp-name" placeholder="Gõ tên thuốc..." autocomplete="off">
+                        <input type="text" id="imp-name" placeholder="Gõ tên thuốc..." autocomplete="off" list="master-name-list">
                         <div id="imp-suggest" class="autocomplete-items"></div>
                     </div>
                     <div style="display:flex; gap:10px">
@@ -516,6 +542,7 @@
         const firebaseConfig = {
             apiKey: "AIzaSyB54vAqmLmkMPq-L0X69oRS2DdVxxtrLPc",
             authDomain: "quanlykho-5c64f.firebaseapp.com",
+            databaseURL: "https://quanlykho-5c64f-default-rtdb.firebaseio.com",
             projectId: "quanlykho-5c64f",
             storageBucket: "quanlykho-5c64f.firebasestorage.app",
             messagingSenderId: "106024120320",
@@ -549,13 +576,64 @@
         document.getElementById('export-filter-end').valueAsDate = new Date();
 
         // LOADING DATA
-        refs.master.on('value', s => { const d=s.val(); const f=d?Object.keys(d).map(k=>({id:k,...d[k]})):[]; renderMasterFilesList(f); refreshMasterData(f); });
-        refs.items.on('value', s => { const d=s.val(); stockData=d?Object.keys(d).map(k=>({id:k,...d[k]})):[]; renderStockTable(); refs.master.once('value', s=>{const fd=s.val();const f=fd?Object.keys(fd).map(k=>({id:k,...fd[k]})):[]; refreshMasterData(f);}); });
+        function snapshotToFiles(snapshot) {
+            const d = snapshot && typeof snapshot.val === 'function' ? snapshot.val() : snapshot;
+            if(!d) return [];
+            if(Array.isArray(d)) return d.map((v,i)=>v ? ({id:String(i), ...v}) : null).filter(Boolean);
+            return Object.keys(d).map(k => {
+                const v = d[k];
+                return (v && typeof v === 'object') ? ({id:k, ...v}) : ({id:k, data:v});
+            });
+        }
+        function showFirebaseError(area, err) {
+            console.error(`[Firebase:${area}]`, err);
+            const msg = err && err.message ? err.message : String(err || 'Không rõ lỗi');
+            if(area === 'Master') {
+                const status = document.getElementById('master-status');
+                if(status) {
+                    status.innerHTML = `❌ Không đọc được dữ liệu Master: <b>${escapeHtml(msg)}</b>`;
+                    status.style.color = '#dc2626';
+                }
+            }
+            showToast(`Lỗi Firebase ${area}: ${msg}`, 'error');
+        }
+        let masterLoadPromise = null;
+        async function ensureMasterLoaded(force=false) {
+            if(masterData.length && !force) return masterData;
+            if(masterLoadPromise && !force) return masterLoadPromise;
+            const status = document.getElementById('master-status');
+            if(status && !masterData.length) {
+                status.textContent = '⏳ Đang tải danh mục sản phẩm từ Firebase...';
+                status.style.color = '#2563eb';
+            }
+            masterLoadPromise = refs.master.once('value').then(s => {
+                const files = snapshotToFiles(s);
+                renderMasterFilesList(files);
+                refreshMasterData(files);
+                return masterData;
+            }).catch(err => {
+                showFirebaseError('Master', err);
+                return [];
+            }).finally(() => { masterLoadPromise = null; });
+            return masterLoadPromise;
+        }
+
+        refs.master.on('value', s => {
+            const f = snapshotToFiles(s);
+            renderMasterFilesList(f);
+            refreshMasterData(f);
+        }, err => showFirebaseError('Master', err));
+        refs.items.on('value', s => {
+            const d=s.val(); stockData=d?Object.keys(d).map(k=>({id:k,...d[k]})):[];
+            renderStockTable();
+            if(!masterData.length) ensureMasterLoaded();
+        }, err => showFirebaseError('Tồn kho', err));
         refs.exports.on('value', s => { 
             const d=s.val(); 
             exportData=d?Object.keys(d).map(k=>({id:k,...d[k]})):[]; 
             filterExportHistory(); // Apply date filter when data loads
-        });
+        }, err => showFirebaseError('Xuất kho', err));
+        ensureMasterLoaded(true);
         
         refs.logs.on('value', s => {
             const log = s.val();
@@ -571,7 +649,10 @@
         });
 
         // LOGIC FUNCTIONS
-        function cleanStr(str) { if(!str) return ''; return str.toString().toLowerCase().replace(/^th[_\-\s]+|thuốc\s+/g, '').trim(); }
+        function cleanStr(str) {
+            if(!str) return '';
+            return str.toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/đ/g,'d').replace(/^th[_\-\s]+|thuoc\s+/g, '').replace(/\s+/g,' ').trim();
+        }
         function cleanCode(str) { if(!str) return ''; return str.toString().trim().toLowerCase(); }
         function normalizeHeader(str) {
             return (str ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/đ/g,'d').replace(/[^a-z0-9]/g,'');
@@ -590,34 +671,42 @@
             return (value ?? '').toString().replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
         }
 
+        function toMasterRows(data) {
+            if(Array.isArray(data)) return data.filter(Boolean);
+            if(data && typeof data === 'object') return Object.values(data).filter(v => v && typeof v === 'object');
+            return [];
+        }
         function refreshMasterData(files) {
             // MASTER LÀ NGUỒN ĐỘC LẬP: tuyệt đối không lấy dữ liệu tồn kho cũ bù ngược vào Master.
-            // Nhờ vậy khi xóa excelFiles, danh mục Master thật sự trở về rỗng và file mới không bị trộn dữ liệu cũ.
             const map = new Map();
-            files.forEach(f => {
-                if(!Array.isArray(f.data)) return;
-                // Hỗ trợ cả cấu trúc Firebase mới (key an toàn) và dữ liệu Master cũ nếu có.
-                f.data.forEach(r => {
+            (files || []).forEach(f => {
+                // Hỗ trợ Master cũ dạng Array, Object key số, hoặc record trực tiếp.
+                let rows = toMasterRows(f && (f.data ?? f.rows ?? f.items));
+                if(!rows.length && f && (f.productName || findColumnValue(f, ['Tên SP','Tên Sản Phẩm','Tên Hàng Hóa','Tên']))) rows = [f];
+                rows.forEach(r => {
                     const name = r.productName ?? findColumnValue(r, ['Tên SP','Tên Sản Phẩm','Tên Hàng Hóa','Tên','Product Name','Product']);
                     const code = r.productCode ?? findColumnValue(r, ['Mã SP','Mã Sản Phẩm','Mã','Code','SKU']);
                     const unit = r.unit ?? findColumnValue(r, ['Đơn Vị','Đơn Vị Tính','ĐVT','Unit']);
                     const strength = r.strength ?? r.productStrength ?? findColumnValue(r, ['Hàm Lượng / Nồng Độ','Hàm Lượng - Nồng Độ','Hàm Lượng','Hàm lượng','Nồng Độ','Nồng độ','Strength','Concentration']);
                     const packSpec = r.packSpec ?? findColumnValue(r, ['Quy Cách','Quy cách','Quy Cách Đóng Gói','Quy cách đóng gói','Pack','Packaging']);
-                    if(name) {
+                    if(name && String(name).trim()) {
                         const k = cleanStr(name);
                         const identity = code ? `code:${cleanCode(code)}` : `name:${k}`;
-                        map.set(identity, { name, code:code||'', unit:unit||'', strength:strength||'', packSpec:packSpec||'', searchKey:k });
+                        map.set(identity, { name:String(name).trim(), code:String(code||'').trim(), unit:String(unit||'').trim(), strength:String(strength||'').trim(), packSpec:String(packSpec||'').trim(), searchKey:k });
                     }
                 });
             });
-            masterData = Array.from(map.values());
+            masterData = Array.from(map.values()).sort((a,b)=>a.name.localeCompare(b.name,'vi'));
             const status = document.getElementById('master-status');
-            document.getElementById('master-code-list').innerHTML = masterData.filter(m => m.code).map(m => `<option value="${escapeHtml(m.code)}">${escapeHtml(m.name)}</option>`).join('');
+            const codeList = document.getElementById('master-code-list');
+            const nameList = document.getElementById('master-name-list');
+            if(codeList) codeList.innerHTML = masterData.filter(m => m.code).map(m => `<option value="${escapeHtml(m.code)}">${escapeHtml(m.name)}</option>`).join('');
+            if(nameList) nameList.innerHTML = masterData.map(m => `<option value="${escapeHtml(m.name)}">${escapeHtml(m.code||m.unit||'')}</option>`).join('');
             if(masterData.length === 0) {
-                status.innerHTML = '🧹 <b>Master đang trống.</b> Dữ liệu Master cũ đã được làm sạch; có thể upload file mới.';
+                status.innerHTML = '🧹 <b>Master đang trống.</b> Chưa có tên thuốc để gợi ý. Hãy kiểm tra Firebase hoặc upload Master.';
                 status.style.color = '#b45309';
             } else {
-                status.innerHTML = `✅ Master đang hoạt động: <b>${masterData.length}</b> sản phẩm.`;
+                status.innerHTML = `✅ Master đang hoạt động: <b>${masterData.length}</b> sản phẩm · có thể gõ/chọn tên thuốc ngay.`;
                 status.style.color = '#059669';
             }
         }
@@ -626,11 +715,27 @@
 
         // AUTOCOMPLETE
         function showSuggestions(input, type, container, callback) {
-            const val = cleanStr(input.value); container.innerHTML = ''; if(!val) return;
+            const raw = (input.value || '').trim();
+            const val = cleanStr(raw);
+            container.innerHTML = '';
             let matches = [];
-            if(type === 'name') matches = masterData.filter(m => m.searchKey.includes(val) || (m.code && m.code.toLowerCase().includes(val))).slice(0, 10);
-            else if (type === 'code') matches = masterData.filter(m => (m.code && m.code.toLowerCase().includes(val))).slice(0, 10);
+            if(type === 'name') {
+                matches = !val
+                    ? masterData.slice(0, 20)
+                    : masterData.filter(m => m.searchKey.includes(val) || val.includes(m.searchKey) || (m.code && cleanCode(m.code).includes(cleanCode(raw)))).slice(0, 20);
+            } else if(type === 'code') {
+                const codeVal = cleanCode(raw);
+                if(!codeVal) return;
+                matches = masterData.filter(m => (m.code && cleanCode(m.code).includes(codeVal))).slice(0, 20);
+            }
 
+            if(type === 'name' && !masterData.length) {
+                const div = document.createElement('div');
+                div.className = 'autocomplete-item';
+                div.innerHTML = '<span style="color:#b45309">Chưa tải được dữ liệu Master. Đang thử nạp lại...</span>';
+                container.appendChild(div);
+                return;
+            }
             matches.forEach(m => {
                 const div = document.createElement('div'); div.className = 'autocomplete-item';
                 const detail = [m.unit, m.strength, m.packSpec].filter(Boolean).join(' · ');
@@ -651,14 +756,21 @@
                 const el=document.getElementById(id); el.style.background = el.value ? '#ecfdf5' : '#fff7ed';
             });
         }
-        document.getElementById('imp-name').addEventListener('input', function() {
-            showSuggestions(this, 'name', document.getElementById('imp-suggest'), applyMasterToManual);
+        const impNameEl = document.getElementById('imp-name');
+        const impSuggestEl = document.getElementById('imp-suggest');
+        impNameEl.addEventListener('focus', async function() {
+            if(!masterData.length) await ensureMasterLoaded();
+            showSuggestions(this, 'name', impSuggestEl, applyMasterToManual);
         });
-        document.getElementById('imp-name').addEventListener('change', function() {
-            const exact = masterData.find(m => m.searchKey === cleanStr(this.value));
+        impNameEl.addEventListener('input', async function() {
+            if(!masterData.length) await ensureMasterLoaded();
+            showSuggestions(this, 'name', impSuggestEl, applyMasterToManual);
+        });
+        impNameEl.addEventListener('change', function() {
+            const exact = masterData.find(m => m.searchKey === cleanStr(this.value) || (m.code && cleanCode(m.code) === cleanCode(this.value)));
             if(exact) applyMasterToManual(exact);
         });
-        document.getElementById('imp-name').addEventListener('blur', () => setTimeout(() => document.getElementById('imp-suggest').innerHTML='', 200));
+        impNameEl.addEventListener('blur', () => setTimeout(() => impSuggestEl.innerHTML='', 250));
 
         // --- IMPORT LOGIC ---
         document.getElementById('import-file').addEventListener('change', e => {
@@ -1304,19 +1416,52 @@
         // UTILS
         function parseDate(v) { if(!v)return ''; if(typeof v==='number') return new Date((v-25569)*86400000).toISOString().split('T')[0]; if(v.includes('/')){const p=v.split('/'); if(p.length===3) return `${p[2]}-${p[1]}-${p[0]}`;} return v; }
         window.saveManual = async () => {
-            const item={ productName: document.getElementById('imp-name').value.trim(), productCode: document.getElementById('imp-code').value, productStrength: document.getElementById('imp-strength').value.trim(), packSpec: document.getElementById('imp-pack').value.trim(), unit: document.getElementById('imp-unit').value, lotNumber: document.getElementById('imp-lot').value.trim(), expiryDate: document.getElementById('imp-exp').value, quantity: parseInt(document.getElementById('imp-qty').value), importDate: document.getElementById('imp-date').value, createdAt: new Date().toISOString() };
-            if(!item.productName || !item.lotNumber || !item.expiryDate || !item.quantity || item.quantity <= 0) return showToast('Thiếu Tên SP / Số lô / Hạn dùng / Số lượng!', 'error');
-            const ok = await openSafetyVerification({
-                title: 'KIỂM TRA TRƯỚC KHI LƯU NHẬP KHO',
-                subtitle: 'Dữ liệu này sẽ được cộng vào tồn kho. Hãy đối chiếu trực tiếp với hàng và chứng từ nhập.',
-                actionType: 'NHẬP KHO',
-                items: [item],
-                date: item.importDate
-            });
-            if(!ok) return;
-            await saveToInventory(item);
-            showToast('Đã lưu nhập kho an toàn', 'success');
-            ['imp-name','imp-code','imp-strength','imp-pack','imp-unit','imp-lot','imp-qty'].forEach(id=>document.getElementById(id).value='');
+            const btn = document.querySelector('button[onclick="saveManual()"]');
+            try {
+                if(btn) { btn.disabled = true; btn.textContent = 'ĐANG KIỂM TRA...'; }
+                // Nếu Master chưa kịp tải, thử nạp lại trước khi lấy thông tin sản phẩm.
+                if(!masterData.length) await ensureMasterLoaded();
+                const nameEl = document.getElementById('imp-name');
+                const exact = masterData.find(m => m.searchKey === cleanStr(nameEl.value) || (m.code && cleanCode(m.code) === cleanCode(nameEl.value)));
+                if(exact) applyMasterToManual(exact);
+
+                const item={
+                    productName: document.getElementById('imp-name').value.trim(),
+                    productCode: document.getElementById('imp-code').value.trim(),
+                    productStrength: document.getElementById('imp-strength').value.trim(),
+                    packSpec: document.getElementById('imp-pack').value.trim(),
+                    unit: document.getElementById('imp-unit').value.trim(),
+                    lotNumber: document.getElementById('imp-lot').value.trim(),
+                    expiryDate: document.getElementById('imp-exp').value,
+                    quantity: parseInt(document.getElementById('imp-qty').value,10),
+                    importDate: document.getElementById('imp-date').value || new Date().toISOString().split('T')[0],
+                    createdAt: new Date().toISOString()
+                };
+                if(!item.productName || !item.lotNumber || !item.expiryDate || !Number.isFinite(item.quantity) || item.quantity <= 0) {
+                    showToast('Thiếu Tên SP / Số lô / Hạn dùng / Số lượng!', 'error');
+                    return;
+                }
+                if(btn) btn.textContent = 'CHỜ XÁC NHẬN...';
+                const ok = await openSafetyVerification({
+                    title: 'KIỂM TRA TRƯỚC KHI LƯU NHẬP KHO',
+                    subtitle: 'Dữ liệu này sẽ được cộng vào tồn kho. Hãy đối chiếu trực tiếp với hàng và chứng từ nhập.',
+                    actionType: 'NHẬP KHO',
+                    items: [item],
+                    date: item.importDate
+                });
+                if(!ok) return;
+                if(btn) btn.textContent = 'ĐANG LƯU FIREBASE...';
+                await saveToInventory(item);
+                showToast('✅ Đã lưu nhập kho vào Firebase', 'success');
+                ['imp-name','imp-code','imp-strength','imp-pack','imp-unit','imp-lot','imp-qty'].forEach(id=>document.getElementById(id).value='');
+                ['imp-code','imp-unit','imp-strength','imp-pack'].forEach(id=>document.getElementById(id).style.background='');
+                document.getElementById('imp-name').focus();
+            } catch(err) {
+                console.error('Lỗi LƯU NHẬP KHO:', err);
+                showToast('❌ Không lưu được nhập kho: ' + (err && err.message ? err.message : err), 'error');
+            } finally {
+                if(btn) { btn.disabled = false; btn.textContent = 'LƯU NHẬP KHO'; }
+            }
         }
         function renderStockTable() { const tb=document.getElementById('stock-body'); tb.innerHTML=''; const term=document.getElementById('search-stock').value.toLowerCase(); stockData.filter(d=>(d.productName||'').toLowerCase().includes(term)).forEach((d,i)=>{ tb.innerHTML+=`<tr><td>${i+1}</td><td>${d.productCode||''}</td><td><b>${d.productName}</b></td><td>${d.productStrength||'<span style="color:#b91c1c">Chưa khai báo</span>'}</td><td>${d.packSpec||'<span style="color:#b91c1c">Chưa khai báo</span>'}</td><td>${d.unit||''}</td><td>${d.lotNumber}</td><td>${d.expiryDate}</td><td><b>${d.quantity}</b></td><td><button class="btn btn-warning" onclick="editStock('${d.id}')">Sửa</button> <button class="btn btn-danger" onclick="requestDeleteStock('${d.id}')">Xóa</button></td></tr>`; }); }
         document.getElementById('search-stock').addEventListener('input', renderStockTable);
@@ -1416,6 +1561,7 @@
             // Xóa mọi cache/gợi ý/phần xem trước có thể còn giữ dữ liệu từ Master cũ trong phiên trình duyệt.
             masterData = [];
             document.getElementById('master-code-list').innerHTML = '';
+            const masterNameList = document.getElementById('master-name-list'); if(masterNameList) masterNameList.innerHTML = '';
             ['imp-suggest','rpt-search-suggest'].forEach(id => {
                 const el = document.getElementById(id); if(el) el.innerHTML = '';
             });
